@@ -5,6 +5,7 @@ import pickle
 import streamlit as st
 from sasmodels.data import load_data
 import tensorflow as tf
+import time
 
 if not os.path.isdir('temp'):
     os.makedirs('temp')
@@ -73,16 +74,26 @@ def fnLoadObject(sFileName):
 
 
 @st.cache_data
-def plot_SANS(Q, Iq, dI, dQ, background):
+def plot_SANS(Q, Iq, dI, dQ, background, qmin, qmax):
+    time.sleep(1)
+    # adjust Iq w/ respect to qmin, qmax
+    Iq_plot = numpy.where(Q <= qmin, Iq[Q <= qmin][-1], Iq)
+    Iq_plot = numpy.where(Q >= qmax, Iq[Q >= qmax][0], Iq_plot)
+    dI_plot = numpy.where(Q < qmin, 0.0, dI)
+    dI_plot = numpy.where(Q > qmax, 0.0, dI_plot)
+
+    upper_index = numpy.where(Q >= qmax)
+    Iq_plot[upper_index] = Iq[upper_index][0]
+
     # Plot SANS curves
     fig, ax = plt.subplots()
     # Clear whatever was in the plot before
     ax.clear()
     # Plot data, add labels, change colors, ...
-    ax.errorbar(Q, Iq, dI, ls='none', color='deepskyblue')
-    ax.scatter(Q, Iq, s=30, marker='o', facecolors='none', edgecolors='deepskyblue', label='orignal')
-    ax.errorbar(Q, Iq - background, dI, ls='none', color='darkred')
-    ax.scatter(Q, Iq - background, s=30, marker='o', facecolors='none', edgecolors='darkred', label='-background')
+    ax.errorbar(Q, Iq_plot, dI_plot, ls='none', color='deepskyblue')
+    ax.scatter(Q, Iq_plot, s=30, marker='o', facecolors='none', edgecolors='deepskyblue', label='orignal')
+    ax.errorbar(Q, Iq_plot - background, dI_plot, ls='none', color='darkred')
+    ax.scatter(Q, Iq_plot - background, s=30, marker='o', facecolors='none', edgecolors='darkred', label='-background')
 
     ax.legend(fontsize=16)
     ax.set_ylabel("$Iq$ (cm$^{-1}$)", fontsize=16)
@@ -99,8 +110,14 @@ def plot_SANS(Q, Iq, dI, dQ, background):
 
 
 @st.cache_data
-def predict(Q, Iq, dI, dQ, background, solvent_sld, ml_model_name):
-    Iq_pred = Iq - background
+def predict(Q, Iq, dI, dQ, background, solvent_sld, ml_model_name, qmin, qmax):
+
+    #truncate data to index range
+    Iq_pred = numpy.where(Q <= qmin, Iq[Q <= qmin][-1], Iq)
+    Iq_pred = numpy.where(Q >= qmax, Iq[Q >= qmax][0], Iq_pred)
+
+
+    Iq_pred = Iq_pred - background
     Iq_pred = numpy.log10(numpy.abs(Iq_pred))
 
     # interpolation of SANS data to hardcoded grid
@@ -157,14 +174,15 @@ if uploaded_file is not None:
 solvent_sld = col1.number_input('Solvent SLD', format='%f', step=0.1, value=6.4)
 
 # ------- Background number input with Auto Button
+col1.text('Background')
 col3, col4 = col1.columns([5,1])
-background = col3.number_input('Background', format='%e', step=0.1, key='background')
-col4.text("_")
+background = col3.number_input('', format='%e', step=0.1, key='background', label_visibility='collapsed')
 col4.button('Auto', on_click=update_background_input_auto)
 
 # -------- File Plot
 if uploaded_file is not None:
-    col1.pyplot(plot_SANS(Q, Iq, dI, dQ, background))
+    (qmin, qmax) = col1.select_slider('Selet Q-range', options=Q, value=(float(Q[0]), float(Q[-1])))
+    col1.pyplot(plot_SANS(Q, Iq, dI, dQ, background, qmin, qmax))
 col1.divider()
 
 # -------- ML model loader
@@ -173,7 +191,7 @@ ml_model_name = col1.selectbox("ML model", model_list)
 sans_models, par_names, ml_model = load_ml_model(ml_model_name)
 
 if uploaded_file:
-    tb_output = predict(Q, Iq, dI, dQ, background, solvent_sld, ml_model_name)
+    tb_output = predict(Q, Iq, dI, dQ, background, solvent_sld, ml_model_name, qmin, qmax)
 tout = ""
 for element in tb_output:
     tout += element + '\n'
