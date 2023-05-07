@@ -15,20 +15,22 @@ tb_output = ['No SANS File Loaded']
 
 # GUI signals
 def update_background_input_auto():
-    background = auto_background()
-    st.session_state.background = background
+    if uploaded_file is not None:
+        background = auto_background(Q, Iq, dI, dQ, qmin, qmax)
+        st.session_state.background = background
 
 
 # Functionality
-def auto_background():
-    if uploaded_file is None:
-        return
+@st.cache_data
+def auto_background(Q, Iq, dI, dQ, qmin, qmax):
+    Iq_backg = numpy.where(Q <= qmin, Iq[Q <= qmin][-1], Iq)
+    Iq_backg = numpy.where(Q >= qmax, Iq[Q >= qmax][0], Iq_backg)
 
     # average of last n points that is within the error bar of the n-1 th point
     background = None
     for i in range(-5, -30, -1):
-        background_new = numpy.average(Iq[i:])
-        if numpy.abs(Iq[i - 1] - background_new) > 2 * dI[i - 1]:
+        background_new = numpy.average(Iq_backg[i:])
+        if numpy.abs(Iq_backg[i - 1] - background_new) > 2 * dI[i - 1]:
             break
         background = background_new
     return background
@@ -176,7 +178,7 @@ solvent_sld = col1.number_input('Solvent SLD', format='%f', step=0.1, value=6.4)
 # ------- Background number input with Auto Button
 col1.text('Background')
 col3, col4 = col1.columns([5,1])
-background = col3.number_input('', format='%e', step=0.1, key='background', label_visibility='collapsed')
+background = col3.number_input('Background', format='%e', step=0.1, key='background', label_visibility='collapsed')
 col4.button('Auto', on_click=update_background_input_auto)
 
 # -------- File Plot
