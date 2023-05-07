@@ -14,7 +14,7 @@ tb_output = ['No SANS File Loaded']
 
 
 # GUI signals
-def update_background_input_auto():
+def update_background_input_auto(Q, Iq, dI, dQ, qmin, qmax):
     if uploaded_file is not None:
         background = auto_background(Q, Iq, dI, dQ, qmin, qmax)
         st.session_state.background = background
@@ -172,24 +172,19 @@ col1, col2 = st.columns([2,1])
 uploaded_file = col1.file_uploader("Choose a SANS file")
 if uploaded_file is not None:
     Q, Iq, dI, dQ, tb_output, uploaded_file = load_SANS_data(uploaded_file)
-
-solvent_sld = col1.number_input('Solvent SLD', format='%f', step=0.1, value=6.4)
-
-# ------- Background number input with Auto Button
-col1.text('Background')
-col3, col4 = col1.columns([5,1])
-background = col3.number_input('Background', format='%e', step=0.1, key='background', label_visibility='collapsed')
-col4.button('Auto', on_click=update_background_input_auto)
-
-# -------- File Plot
-if uploaded_file is not None:
     (qmin, qmax) = col1.select_slider('Selet Q-range', options=Q, value=(float(Q[0]), float(Q[-1])))
+    solvent_sld = col1.number_input('Solvent SLD', format='%f', step=0.1, value=6.4)
+    # ------- Background number input with Auto Button
+    col1.text('Background')
+    col3, col4 = col1.columns([5,1])
+    background = col3.number_input('Background', format='%e', step=0.1, key='background', label_visibility='collapsed')
+    col4.button('Auto', on_click=update_background_input_auto, args=[Q, Iq, dI, dQ, qmin, qmax])
+    # -------- File Plot
     col1.pyplot(plot_SANS(Q, Iq, dI, dQ, background, qmin, qmax))
-col1.divider()
 
 # -------- ML model loader
 model_list = os.listdir('ml_models')
-ml_model_name = col1.selectbox("ML model", model_list)
+ml_model_name = col2.selectbox("ML model", model_list)
 sans_models, par_names, ml_model = load_ml_model(ml_model_name)
 
 if uploaded_file:
@@ -199,5 +194,6 @@ for element in tb_output:
     tout += element + '\n'
 
 col2.text(tout)
+st.divider()
 
 
