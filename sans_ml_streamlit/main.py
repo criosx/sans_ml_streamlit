@@ -1,6 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy
 import os
+from pathlib import Path
 import pickle
 import streamlit as st
 from sasmodels.data import load_data
@@ -38,7 +39,7 @@ def auto_background(Q, Iq, dI, dQ, qmin, qmax):
 
 @st.cache_data
 def load_ml_model(model):
-    dirname = os.path.join('ml_models', model)
+    dirname = str(Path(__file__).parent.parent / 'ml_models' / model)
     try:
         sans_models = fnLoadObject(os.path.join(dirname, 'sans_models.dat'))
         par_names = fnLoadObject(os.path.join(dirname, 'par_names.dat'))
@@ -183,7 +184,8 @@ if uploaded_file is not None:
     col1.pyplot(plot_SANS(Q, Iq, dI, dQ, background, qmin, qmax))
 
 # -------- ML model loader
-model_list = os.listdir('ml_models')
+model_path = Path(__file__).parent.parent / 'ml_models'
+model_list = os.listdir(model_path)
 ml_model_name = col2.selectbox("ML model", model_list)
 sans_models, par_names, ml_model = load_ml_model(ml_model_name)
 
