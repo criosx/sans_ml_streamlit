@@ -11,8 +11,10 @@ import time
 if not os.path.isdir('temp'):
     os.makedirs('temp')
 
-data_path = os.path.join(os.path.expanduser('~'), 'app_data', 'streamlit_sans_ml')
-default_model_path = os.path.join(str(Path(__file__).parent.parent.parent), 'ml_models')
+streamlit_dir = st.session_state['streamlit_dir']
+user_ml_model_dir = st.session_state['user_ml_model_dir']
+user_sans_file_dir = st.session_state['user_sans_file_dir']
+default_model_dir = os.path.join(str(Path(__file__).parent.parent.parent), 'ml_models')
 tb_output = ['No SANS File Loaded']
 
 
@@ -58,9 +60,9 @@ def load_ml_model(path, model):
 @st.cache_data
 def load_SANS_data(uploaded_file):
     try:
-        with open(os.path.join(data_path, "temp", uploaded_file.name), "wb") as f:
+        with open(os.path.join(user_sans_file_dir, uploaded_file.name), "wb") as f:
             f.write(uploaded_file.getbuffer())
-        ds = load_data(os.path.join(data_path, "temp", uploaded_file.name))
+        ds = load_data(os.path.join(user_sans_file_dir, uploaded_file.name))
         Q = ds.x
         Iq = ds.y
         dI = ds.dy
@@ -175,6 +177,7 @@ col1, col2 = st.columns([2,1])
 uploaded_file = col1.file_uploader("Choose a SANS file")
 if uploaded_file is not None:
     Q, Iq, dI, dQ, tb_output, uploaded_file = load_SANS_data(uploaded_file)
+    # -------- Slider -------------------------
     (qmin, qmax) = col1.select_slider('Selet Q-range', options=Q, value=(float(Q[0]), float(Q[-1])))
     solvent_sld = col1.number_input('Solvent SLD', format='%f', step=0.1, value=6.4)
     # ------- Background number input with Auto Button
@@ -187,9 +190,9 @@ if uploaded_file is not None:
 
 # -------- ML model loader
 # there are two model folders -> offer models from both
-model_path = os.path.join(default_model_path)
+model_path = default_model_dir
 model_list = os.listdir(model_path)
-model_path2 = os.path.join(data_path, 'ml_models')
+model_path2 = user_ml_model_dir
 model_list2 = os.listdir(model_path2)
 combined_model_list = model_list + model_list2
 ml_model_name = col2.selectbox("ML model", combined_model_list)
