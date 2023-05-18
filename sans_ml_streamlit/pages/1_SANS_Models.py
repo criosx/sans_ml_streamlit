@@ -1,4 +1,5 @@
 import os
+from PIL import Image
 from sasmodels.data import load_data
 from scattertools.support import molstat
 import shutil
@@ -109,11 +110,16 @@ if st.button('Run Fit'):
         for file in uploaded_file:
             shutil.copyfile(os.path.join(user_sans_file_dir, file.name), os.path.join(user_sans_fit_dir, file.name))
         # run fit
-        st.info("Starting fit ...")
+        st.info("Starting the fit ...")
         fitobj = run_fit(user_sans_fit_dir, model_name_stripped, burn, steps)
+        st.info("Analyzing the fit ...")
         results = fitobj.fnAnalyzeStatFile(fConfidence=-1)
         st.write('Results:')
         st.write(results)
+        for file in os.listdir("MCMC"):
+            if file.endswith(".png"):
+                image = Image.open(os.path.join('MCMC',file))
+                st.image(image)
 
 
 
