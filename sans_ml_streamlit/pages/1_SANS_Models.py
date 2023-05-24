@@ -59,7 +59,7 @@ def get_info_from_runfile(model_name):
 
     df = pandas.DataFrame.from_dict(fitobj.fnLoadParameters())
     df = df.drop(index=['number', 'relval', 'variable', 'error'])
-    df.loc['fit'] = fit_row
+    # df.loc['fit'] = fit_row
     os.chdir(olddir)
     return df, datafile_names
 
