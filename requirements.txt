@@ -1,6 +1,11 @@
+bumps
 matplotlib
 numpy
+pandas
+pillow
 streamlit
 tensorflow
 sasmodels @  git+https://github.com/SasView/sasmodels.git
+scattertools @ git+https://github.com/criosx/scattertools
 sasdata
+shapely
