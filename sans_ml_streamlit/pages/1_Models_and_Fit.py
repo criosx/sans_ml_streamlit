@@ -101,11 +101,28 @@ def load_sans_files(filelist):
             pass
 
 
-def run_fit(fitdir=None, runfile=None, datafile_names=None, burn=1000, steps=200):
+def run_fit(fitdir=None, runfile=None, datafile_names=None, datafile_names_uploaded=None, burn=1000, steps=200):
     # save current working directory
     olddir = os.getcwd()
+
+    # check if all data files are in place
+    breakflag = False
+    for file in datafile_names:
+        if file not in datafile_names_uploaded:
+            if os.path.isfile(os.path.join(user_sans_file_dir, file)):
+                infostr = 'Data file ' + file + ' not uploaded. Using copy from user file folder.'
+                st.info(infostr)
+            else:
+                errorstr = 'Data file ' + file + ' not uploaded.'
+                st.error(errorstr)
+                breakflag = True
+
+    if breakflag:
+        return
+
+    datafpaths = [os.path.join(user_sans_file_dir, file) for file in datafile_names]
     molstat.prepare_fit_directory(fitdir=fitdir, runfile=os.path.join(user_sans_model_dir, runfile),
-                                  datafile_names=datafile_names)
+                                  datafile_names=datafpaths)
 
     st.info("Starting the fit ...")
     runfile = os.path.splitext(runfile)[0]
@@ -166,6 +183,7 @@ st.write("""
 model_path = user_sans_model_dir
 model_list = os.listdir(model_path)
 model_list = [element for element in model_list if '.py' in element]
+datafile_names = None
 
 # st.text("Select SANS model")
 col1_a, col1_b = st.columns([1, 2])
@@ -196,12 +214,12 @@ if model_name:
 
     col1_1, col1_2 = st.columns([1, 1])
     df_pars, li_all_pars, datafile_names, model_fitobj = get_info_from_runfile(model_name)
-    #col1_1.text('Edit fit ranges')
+    col1_1.text('Edit fit ranges')
     parameters_edited = col1_1.experimental_data_editor(df_pars)
     col1_1.button('Apply', on_click=update_par, args=[parameters_edited, model_name, model_fitobj],
                   use_container_width=False)
 
-    #col1_2.text('Add fit parameter')
+    col1_2.text('Add / Remove fit parameters')
     col1_2_1, col1_2_2 = col1_2.columns([2, 1])
     li_current_pars = sorted(list(df_pars.index.values))
     li_addable_pars = sorted(list(set(li_all_pars) - set(li_current_pars)))
@@ -214,9 +232,10 @@ if model_name:
     col1_2_4.button('Remove', on_click=remove_par, args=[par_to_del, model_name, model_fitobj],
                     use_container_width=True)
 
-    col1_2.text('Expected Data Files')
+    col1_2.divider()
+    col1_2.text('Expected Data Files:')
     for file in datafile_names:
-        col1_2.text("  " + file)
+        col1_2.text(file)
     # TODO implement back-propagation to script
 
     st.divider()
@@ -238,8 +257,9 @@ steps = col1_4.number_input('steps', format='%i', step=50, min_value=50, value=1
 
 if st.button('Run Fit'):
     if model_name is not None and uploaded_file is not None:
-        datafile_names = [os.path.join(user_sans_file_dir, file.name) for file in uploaded_file]
-        run_fit(fitdir=user_sans_fit_dir, runfile=model_name, datafile_names=datafile_names, burn=burn, steps=steps)
+        datafile_names_uploaded = [file.name for file in uploaded_file]
+        run_fit(fitdir=user_sans_fit_dir, runfile=model_name, datafile_names=datafile_names,
+                datafile_names_uploaded=datafile_names_uploaded, burn=burn, steps=steps)
 
 
 
