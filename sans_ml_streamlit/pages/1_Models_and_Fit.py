@@ -1,7 +1,6 @@
 import os
 from PIL import Image
 import pandas
-from sasmodels.data import load_data
 from scattertools.support import molstat
 from scattertools.support import api_sasview
 import shutil
