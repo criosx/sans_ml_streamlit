@@ -180,26 +180,27 @@ st.write("""
 # -------- SANS model loader
 model_path = user_sans_model_dir
 model_list = os.listdir(model_path)
-model_list = [element for element in model_list if '.py' in element]
+model_list = sorted([element for element in model_list if '.py' in element])
 datafile_names = None
 
 # st.text("Select SANS model")
-col1_a, col1_b = st.columns([1, 2])
-uploaded_model = col1_b.file_uploader("Upload", type=['py'])
+col1_a, col1_b = st.columns([1.5, 2])
+uploaded_model = col1_b.file_uploader("Upload / Download", type=['py'])
 if uploaded_model is not None:
     load_model(uploaded_model)
-model_name = col1_a.selectbox("Select existing", model_list, key='sans_model_selectbox')
+model_name = col1_a.selectbox("Select from user directory", model_list, key='sans_model_selectbox')
 
 if model_name:
     with open(os.path.join(user_sans_model_dir, model_name), "rb") as file:
-        btn = col1_a.download_button(
-            label="Download Model",
+        btn = col1_b.download_button(
+            label="Download",
             data=file,
             file_name=model_name,
             mime='text/plain'
         )
 
     st.divider()
+
     st.write("""
     # Edit Model
     """)
