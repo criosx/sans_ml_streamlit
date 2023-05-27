@@ -26,11 +26,10 @@ def remove_par(parname, model_name, fitobj):
 
 def update_par(df_pars, model_name, fitobj):
     labels = list(df_pars.index)
-    print(labels)
-    print(df_pars)
     for index, row in df_pars.iterrows():
         fitobj.Interactor.fnReplaceParameterLimitsInSetup(index, row['lowerlimit'], row['upperlimit'])
     shutil.copyfile(os.path.join(user_sans_temp_dir, model_name), os.path.join(user_sans_model_dir, model_name))
+
 
 def get_info_from_runfile(model_name):
     fitdir = user_sans_temp_dir
@@ -259,6 +258,16 @@ if st.button('Run Fit'):
         datafile_names_uploaded = [file.name for file in uploaded_file]
         run_fit(fitdir=user_sans_fit_dir, runfile=model_name, datafile_names=datafile_names,
                 datafile_names_uploaded=datafile_names_uploaded, burn=burn, steps=steps)
+        # zip fit folder for download
+        st.info('Zipping the fit ...')
+        shutil.make_archive(os.path.join(user_sans_temp_dir, 'fit'), 'zip', user_sans_fit_dir)
+        with open(os.path.join(user_sans_temp_dir, 'fit.zip'), "rb") as file:
+            btn2 = st.download_button(
+                label='Download  Fit',
+                data=file,
+                file_name='fit.zip',
+                mime=None
+            )
 
 
 

@@ -1,9 +1,10 @@
 import os
 import pandas
+from pathlib import Path
+import shutil
 import streamlit as st
 
 # check if all working directories exist
-
 app_dir = os.path.join(os.path.expanduser('~'), 'app_data')
 if not os.path.isdir(app_dir):
     os.mkdir(app_dir)
@@ -26,6 +27,21 @@ temp_dir = os.path.join(streamlit_dir, 'temp')
 if not os.path.isdir(temp_dir):
     os.mkdir(temp_dir)
 
+# Copy example SANS models into user model directory if not already present.
+# This makes sure that a new user always has a selection of models available.
+example_model_dir = os.path.join(str(Path(__file__).parent.parent), 'example_SANS_models')
+model_files = [f for f in os.listdir(example_model_dir) if os.path.isfile(os.path.join(example_model_dir, f))]
+for file in model_files:
+    if not os.path.isfile(os.path.join(user_sans_model_dir, file)):
+        shutil.copyfile(os.path.join(example_model_dir, file), os.path.join(user_sans_model_dir, file))
+
+# For similar reasons, copy one data file to the user directory. This data file is the default for the example models.
+example_file_dir = os.path.join(str(Path(__file__).parent.parent), 'example_SANS_files')
+if not os.path.isfile(os.path.join(user_sans_file_dir, 'data0.dat')):
+    shutil.copyfile(os.path.join(example_file_dir, 'data0.dat'), os.path.join(user_sans_file_dir, 'data0.dat'))
+
+
+# save paths to persistent session state
 st.session_state['streamlit_dir'] = streamlit_dir
 st.session_state['user_sans_model_dir'] = user_sans_model_dir
 st.session_state['user_sans_file_dir'] = user_sans_file_dir
