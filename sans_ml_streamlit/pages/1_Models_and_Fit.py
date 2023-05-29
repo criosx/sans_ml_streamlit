@@ -225,7 +225,6 @@ if model_name:
     par_to_add = col1_2_1.selectbox("Add fit parameter", li_addable_pars, label_visibility='collapsed')
     col1_2_2.button('Add', on_click=add_par, args=[par_to_add, model_name, model_fitobj], use_container_width=True)
 
-    #col1_2.text('Remove fit parameter')
     col1_2_3, col1_2_4 = col1_2.columns([2, 1])
     par_to_del = col1_2_3.selectbox("Remove fit parameter", li_current_pars, label_visibility='collapsed')
     col1_2_4.button('Remove', on_click=remove_par, args=[par_to_del, model_name, model_fitobj],

@@ -3,6 +3,7 @@ matplotlib
 numpy
 pandas
 pillow
+plotly
 streamlit
 tensorflow
 sasmodels @  git+https://github.com/SasView/sasmodels.git
