@@ -51,13 +51,7 @@ def get_info_from_runfile(model_name):
         if os.path.isfile(filename):
             shutil.copyfile(filename, os.path.join(fitdir, os.path.basename(filename)))
         else:
-            dummyfile = ['Q I dI dQ\n']
-            for i in range(100):
-                dummyfile.append(str(float(i)*0.005) + ' ' + str(1.0 - float(i)*0.005) + ' 0.001 0.001\n')
-            dummyfile.append('\n')
-            file = open(os.path.join(fitdir, os.path.basename(filename)), 'w')
-            file.writelines(dummyfile)
-            file.close()
+            api_sasview.write_dummy_sans_file(os.path.join(fitdir, os.path.basename(filename)))
 
     olddir = os.getcwd()
     os.chdir(fitdir)

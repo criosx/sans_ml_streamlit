@@ -52,9 +52,10 @@ if not os.path.isfile(os.path.join(user_sans_file_dir, 'data0.dat')):
 
 # And do this for configurations
 example_config_dir = os.path.join(str(Path(__file__).parent.parent), 'example_SANS_configurations')
-if not os.path.isfile(os.path.join(user_sans_config_dir, 'pinhole.json')):
-    shutil.copyfile(os.path.join(example_config_dir, 'pinhole.json'), os.path.join(user_sans_config_dir,
-                                                                                   'pinhole.json'))
+config_files = [f for f in os.listdir(example_config_dir)]
+for file in config_files:
+    if not os.path.isfile(os.path.join(user_sans_config_dir, file)):
+        shutil.copyfile(os.path.join(example_config_dir, file), os.path.join(user_sans_config_dir, file))
 
 # save paths to persistent session state
 st.session_state['streamlit_dir'] = streamlit_dir
