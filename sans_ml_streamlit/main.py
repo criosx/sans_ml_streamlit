@@ -37,6 +37,8 @@ temp_dir = os.path.join(streamlit_dir, 'temp')
 if not os.path.isdir(temp_dir):
     os.mkdir(temp_dir)
 
+app_functions_dir = os.path.join(str(Path(__file__).parent), 'imports')
+
 # Copy example SANS models into user model directory if not already present.
 # This makes sure that a new user always has a selection of models available.
 example_model_dir = os.path.join(str(Path(__file__).parent.parent), 'example_SANS_models')
@@ -65,6 +67,7 @@ st.session_state['user_sans_file_dir'] = user_sans_file_dir
 st.session_state['user_sans_fit_dir'] = user_sans_fit_dir
 st.session_state['user_ml_model_dir'] = user_ml_model_dir
 st.session_state['example_sans_config_dir'] = example_config_dir
+st.session_state['app_functions_dir'] = app_functions_dir
 
 df_folders = pandas.DataFrame({
     'App home': [st.session_state['streamlit_dir']],

@@ -1,13 +1,15 @@
+import numpy
 import os
-from PIL import Image
 import pandas
 import plotly.graph_objects as go
 from sasmodels.data import load_data
-from scattertools.support import molstat
 from scattertools.support import api_sasview
 import shutil
 import streamlit as st
-import subprocess
+
+import sys
+sys.path.append(st.session_state['app_functions_dir'])
+import app_functions
 
 user_sans_model_dir = st.session_state['user_sans_model_dir']
 user_sans_file_dir = st.session_state['user_sans_file_dir']
@@ -26,7 +28,7 @@ def column_load_file(column_number=None, col=None, file_list=None):
 
     uploaded_file = col.file_uploader("Upload File", key='comp_load_file' + cns, accept_multiple_files=False)
     if uploaded_file is not None:
-        ds, tb_output, uploaded_file = load_SANS_data(uploaded_file)
+        ds, tb_output, uploaded_file = app_functions.load_SANS_data(uploaded_file, user_sans_file_dir)
         if tb_output != '':
             col.error(tb_output)
         else:
@@ -34,7 +36,7 @@ def column_load_file(column_number=None, col=None, file_list=None):
     if uploaded_file is None:
         file_name = col.selectbox("Select File", file_list, key='comparison_selectbox' + cns)
         if file_name is not None:
-            ds, tb_output, file_name = load_sans_file(file_name)
+            ds, tb_output, file_name = app_functions.load_sans_file(file_name, user_sans_file_dir)
             if tb_output != '':
                 col.error(tb_output)
     return ds, file_name
@@ -51,7 +53,8 @@ def column_simulate_data(column_number=None, col=None, model_list=None, config_l
         if not isinstance(config_list, list):
             config_list = [config_list]
 
-    qmin = col.number_input('q_min', min_value=0.0001, max_value=0.8, value=0.01, key='simulation_qmin'+cns)
+    qmin = col.number_input('q_min', min_value=0.0001, max_value=0.8, value=0.001, format='%.4f',
+                            key='simulation_qmin'+cns)
     qmax = col.number_input('q_max', min_value=0.0001, max_value=0.8, value=0.8, key='simulation_qmax'+cns)
 
     average = True
@@ -61,7 +64,8 @@ def column_simulate_data(column_number=None, col=None, model_list=None, config_l
             average = False
 
     if model_name is not None:
-        df_pars, li_allpars, datafile_names, fitobj = get_info_from_runfile(model_name)
+        df_pars, li_allpars, datafile_names, fitobj = \
+            app_functions.get_info_from_runfile(model_name, user_sans_model_dir, user_sans_file_dir, user_sans_temp_dir)
         simpar = pandas.DataFrame(df_pars.loc['value'])
         simpar.reset_index(inplace=True)
         simpar.columns = ['par', 'value']
@@ -97,6 +101,10 @@ def column_simulate_data(column_number=None, col=None, model_list=None, config_l
                                            qmax=qmax, t_total=None, simpar=simpar_edited, average=average)
             for i in range(len(liData)):
                 sans_graphs.append([liData[i][1], new_file_list[i]])
+
+            if col.button("Copy simulated data to user directory.", key='simulation_copy_btn'+cns):
+                for file in new_file_list:
+                    shutil.copyfile(os.path.join(user_sans_temp_dir, file), os.path.join(user_sans_file_dir, file))
         else:
             col.info('Select configuration!')
 
@@ -123,43 +131,6 @@ def create_non_default_configuration(default, modifier):
     return config_name
 
 
-def get_info_from_runfile(model_name):
-    fitdir = user_sans_temp_dir
-    runfile = os.path.join(user_sans_model_dir, model_name)
-    # extract name of data files from runfile
-    datafile_names = api_sasview.extract_data_filenames_from_runfile(runfile=runfile)
-
-    # strip any long path from filename and retain only the basename, write back to file
-    datafile_names = [os.path.basename(file) for file in datafile_names]
-    api_sasview.write_data_filenames_to_runfile(runfile=runfile, filelist=datafile_names)
-
-    # check if data files are in user folder, if not then create dummy files
-    datafile_names_user = [os.path.join(user_sans_file_dir, os.path.basename(file)) for file in datafile_names]
-
-    molstat.prepare_fit_directory(fitdir=fitdir, runfile=runfile, datafile_names=datafile_names_user)
-
-    # if datafiles exist in user filedir, use those; otherwise create dummy files
-    for filename in datafile_names_user:
-        if os.path.isfile(filename):
-            shutil.copyfile(filename, os.path.join(fitdir, os.path.basename(filename)))
-        else:
-            api_sasview.write_dummy_sans_file(os.path.join(fitdir, os.path.basename(filename)))
-
-    os.chdir(fitdir)
-    fitobj = molstat.CMolStat(
-        fitsource="SASView",
-        spath=fitdir,
-        mcmcpath="MCMC",
-        runfile=os.path.basename(runfile),
-        state=None,
-        problem=None,
-    )
-    df_pars = pandas.DataFrame.from_dict(fitobj.fnLoadParameters())
-    li_allpars = list(fitobj.Interactor.problem.model_parameters().keys())
-
-    return df_pars, li_allpars, datafile_names, fitobj
-
-
 @st.cache_data
 def load_config(file):
     try:
@@ -168,45 +139,6 @@ def load_config(file):
         st.session_state['sans_config_selectbox'] = file.name
     except IOError:
         pass
-
-
-@st.cache_data
-def load_SANS_data(uploaded_file):
-    try:
-        with open(os.path.join(user_sans_file_dir, uploaded_file.name), "wb") as f:
-            f.write(uploaded_file.getbuffer())
-        ds, tb_output, file_name = load_sans_file(uploaded_file.name)
-        if file_name is None:
-            uploaded_file = None
-    except IOError:
-        ds = None
-        tb_output = ["Invalid SANS data file."]
-        uploaded_file = None
-    return ds, tb_output, uploaded_file
-
-
-@st.cache_data
-def load_sans_file(file_name):
-    try:
-        dso = load_data(os.path.join(user_sans_file_dir, file_name))
-        Q = dso.x
-        Iq = dso.y
-        dI = dso.dy
-        dQ = dso.dx
-        ds = pandas.DataFrame(
-            {'Q': Q,
-             'I': Iq,
-             'dI': dI,
-             'dQ': dQ
-             }
-        )
-        tb_output = ""
-    except IOError:
-        ds = None
-        tb_output = ["Invalid SANS data file."]
-        file_name = None
-
-    return ds, tb_output, file_name
 
 
 def remove_configuration(name):
@@ -338,10 +270,41 @@ if sans_graphs2:
     for g in sans_graphs2:
         fig.add_trace(go.Scatter(x=g[0]['Q'], y=g[0]['I'], mode='markers',
                                  error_y=dict(type='data', array=g[0]['dI'], visible=True), name='2 - '+g[1]))
-
 fig.update_xaxes(type="log", ticks='inside', showgrid=True, showline=True, linewidth=2, mirror=True,
                  title_text='Momentum transfer (1/Å)')
 fig.update_yaxes(type="log", ticks='inside', showgrid=True, showline=True, linewidth=2, mirror=True,
-                 title_text='Intensity')
+                 title_text='Intensity (1/cm)')
+fig['data'][0]['showlegend'] = True
+st.plotly_chart(fig, user_container_width=True)
 
+fig = go.Figure()
+if sans_graphs1:
+    for g in sans_graphs1:
+        y_result = numpy.divide(g[0]['dI'], g[0]['I'], out=numpy.zeros_like(g[0]['dI']), where=g[0]['I']!=0)
+        fig.add_trace(go.Scatter(x=g[0]['Q'], y=y_result, mode='markers', name='1 - '+g[1]))
+if sans_graphs2:
+    for g in sans_graphs2:
+        y_result = numpy.divide(g[0]['dI'], g[0]['I'], out=numpy.zeros_like(g[0]['dI']), where=g[0]['I'] != 0)
+        fig.add_trace(go.Scatter(x=g[0]['Q'], y=y_result, mode='markers', name='2 - '+g[1]))
+fig.update_xaxes(type="log", ticks='inside', showgrid=True, showline=True, linewidth=2, mirror=True,
+                 title_text='Momentum transfer (1/Å)')
+fig.update_yaxes(type="log", ticks='inside', showgrid=True, showline=True, linewidth=2, mirror=True,
+                 title_text='dI / I')
+fig['data'][0]['showlegend'] = True
+st.plotly_chart(fig, user_container_width=True)
+
+fig = go.Figure()
+if sans_graphs1:
+    for g in sans_graphs1:
+        y_result = numpy.divide(g[0]['dQ'], g[0]['Q'], out=numpy.zeros_like(g[0]['dQ']), where=g[0]['Q']!=0)
+        fig.add_trace(go.Scatter(x=g[0]['Q'], y=y_result, mode='markers', name='1 - '+g[1]))
+if sans_graphs2:
+    for g in sans_graphs2:
+        y_result = numpy.divide(g[0]['dQ'], g[0]['Q'], out=numpy.zeros_like(g[0]['dQ']), where=g[0]['Q']!=0)
+        fig.add_trace(go.Scatter(x=g[0]['Q'], y=y_result, mode='markers', name='2 - '+g[1]))
+fig.update_xaxes(type="log", ticks='inside', showgrid=True, showline=True, linewidth=2, mirror=True,
+                 title_text='Momentum transfer (1/Å)')
+fig.update_yaxes(type="log", ticks='inside', showgrid=True, showline=True, linewidth=2, mirror=True,
+                 title_text='dQ / Q')
+fig['data'][0]['showlegend'] = True
 st.plotly_chart(fig, user_container_width=True)
