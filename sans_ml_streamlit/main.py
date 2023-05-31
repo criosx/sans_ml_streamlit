@@ -8,24 +8,36 @@ import streamlit as st
 app_dir = os.path.join(os.path.expanduser('~'), 'app_data')
 if not os.path.isdir(app_dir):
     os.mkdir(app_dir)
+
 streamlit_dir = os.path.join(app_dir, 'streamlit_sans_ml')
 if not os.path.isdir(streamlit_dir):
     os.mkdir(streamlit_dir)
+
+user_sans_config_dir = os.path.join(streamlit_dir, 'SANS_configurations')
+if not os.path.isdir(user_sans_config_dir):
+    os.mkdir(user_sans_config_dir)
+
 user_ml_model_dir = os.path.join(streamlit_dir, 'ml_models')
 if not os.path.isdir(user_ml_model_dir):
     os.mkdir(user_ml_model_dir)
+
 user_sans_model_dir = os.path.join(streamlit_dir, 'SANS_models')
 if not os.path.isdir(user_sans_model_dir):
     os.mkdir(user_sans_model_dir)
+
 user_sans_file_dir = os.path.join(streamlit_dir, 'SANS_files')
 if not os.path.isdir(user_sans_file_dir):
     os.mkdir(user_sans_file_dir)
+
 user_sans_fit_dir = os.path.join(streamlit_dir, 'SANS_fit')
 if not os.path.isdir(user_sans_fit_dir):
     os.mkdir(user_sans_fit_dir)
+
 temp_dir = os.path.join(streamlit_dir, 'temp')
 if not os.path.isdir(temp_dir):
     os.mkdir(temp_dir)
+
+app_functions_dir = os.path.join(str(Path(__file__).parent), 'imports')
 
 # Copy example SANS models into user model directory if not already present.
 # This makes sure that a new user always has a selection of models available.
@@ -40,18 +52,28 @@ example_file_dir = os.path.join(str(Path(__file__).parent.parent), 'example_SANS
 if not os.path.isfile(os.path.join(user_sans_file_dir, 'data0.dat')):
     shutil.copyfile(os.path.join(example_file_dir, 'data0.dat'), os.path.join(user_sans_file_dir, 'data0.dat'))
 
+# And do this for configurations
+example_config_dir = os.path.join(str(Path(__file__).parent.parent), 'example_SANS_configurations')
+config_files = [f for f in os.listdir(example_config_dir)]
+for file in config_files:
+    if not os.path.isfile(os.path.join(user_sans_config_dir, file)):
+        shutil.copyfile(os.path.join(example_config_dir, file), os.path.join(user_sans_config_dir, file))
 
 # save paths to persistent session state
 st.session_state['streamlit_dir'] = streamlit_dir
+st.session_state['user_sans_config_dir'] = user_sans_config_dir
 st.session_state['user_sans_model_dir'] = user_sans_model_dir
 st.session_state['user_sans_file_dir'] = user_sans_file_dir
 st.session_state['user_sans_fit_dir'] = user_sans_fit_dir
 st.session_state['user_ml_model_dir'] = user_ml_model_dir
+st.session_state['example_sans_config_dir'] = example_config_dir
+st.session_state['app_functions_dir'] = app_functions_dir
 
 df_folders = pandas.DataFrame({
     'App home': [st.session_state['streamlit_dir']],
     'SANS models': [st.session_state['user_sans_model_dir']],
     'SANS data': [st.session_state['user_sans_file_dir']],
+    'SANS instrument configurations': [st.session_state['user_sans_config_dir']],
     'SANS fits': st.session_state['user_sans_fit_dir'],
     'ML models': [st.session_state['user_ml_model_dir']]
 })
