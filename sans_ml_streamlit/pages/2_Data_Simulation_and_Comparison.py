@@ -2,7 +2,6 @@ import numpy
 import os
 import pandas
 import plotly.graph_objects as go
-from sasmodels.data import load_data
 from scattertools.support import api_sasview
 import shutil
 import streamlit as st

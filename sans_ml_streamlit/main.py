@@ -95,8 +95,6 @@ This module provides a model uploader and editor, as well as a fitting interface
 for initial data analysis during the beam time, for example.
 
 ### Data Simulation
-(in development)
-
 Here, data can be simulated using any model set up in the previous module. A configuration editor allows to simulate 
 data for a particular SANS instrument. Comparisons between differently simulated data allow testing of the sensitivity 
 of a specific experiment as required in a beam time proposal. Instrument configurations and simulated data are 
