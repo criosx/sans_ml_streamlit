@@ -1,12 +1,6 @@
 import os
-from PIL import Image
-import pandas
-from scattertools.support import molstat
-from scattertools.support import api_sasview
 import shutil
 import streamlit as st
-import subprocess
-
 import sys
 sys.path.append(st.session_state['app_functions_dir'])
 import app_functions
@@ -96,7 +90,14 @@ if model_name:
     df_pars = df_pars.transpose()
 
     col1_1.text('Edit fit ranges')
-    parameters_edited = col1_1.experimental_data_editor(df_pars)
+    parameters_edited = col1_1.data_editor(
+        df_pars,
+        disabled=["_index"],
+        column_config={
+            'lowerlimit': "lower limit",
+            'upperlimit': "upper limit"
+        }
+    )
     col1_1.button('Apply', on_click=update_par, args=[parameters_edited, model_name, model_fitobj],
                   use_container_width=False)
 

@@ -70,7 +70,15 @@ def column_simulate_data(column_number=None, col=None, model_list=None, config_l
         simpar.columns = ['par', 'value']
 
         col.text("Enter simulation parameters")
-        simpar_edited = col.experimental_data_editor(simpar, use_container_width=True, key='simulation_paredit'+cns)
+        simpar_edited = col.data_editor(
+            simpar,
+            use_container_width=True,
+            key='simulation_paredit'+cns,
+            disabled=["par"],
+            column_config={
+                'par': "name",
+            }
+        )
 
         configurations = []
         if config_list is not None:
@@ -224,10 +232,10 @@ with st.expander('Edit'):
 
     if 'exp_data_frame_config' not in st.session_state:
         df_config = pandas.read_json(os.path.join(config_path, config_name), orient='record')
-        st.session_state.exp_data_frame_config = st.experimental_data_editor(df_config, use_container_width=True)
+        st.session_state.exp_data_frame_config = st.data_editor(df_config, use_container_width=True)
         df_config_edited = st.session_state.exp_data_frame_config
     else:
-        df_config_edited = st.experimental_data_editor(st.session_state.exp_data_frame_config, use_container_width=True)
+        df_config_edited = st.data_editor(st.session_state.exp_data_frame_config, use_container_width=True)
 
     save_config(df_config_edited, config_name)
 
