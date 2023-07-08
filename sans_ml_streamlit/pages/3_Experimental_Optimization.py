@@ -21,10 +21,10 @@ example_sans_config_dir = st.session_state['example_sans_config_dir']
 
 
 # ------------ Functionality -----------
-@st.cache_data
 def adjust_consecutive_configurations(reference_config):
     if len(st.session_state['df_opt_config_updated']) > 1:
         for j in range(1, len(st.session_state['df_opt_config_updated'])):
+            change_flag = False
             # shorthand handles
             df0 = st.session_state['df_opt_config_updated'][0]
             dfj = st.session_state['df_opt_config_updated'][j]
@@ -32,7 +32,10 @@ def adjust_consecutive_configurations(reference_config):
             for par in df0.index.values:
                 # delete a shared setting from consecutive data frames
                 if df0.loc[df0.index == par, 'shared'].iat[0]:
-                    dfj = dfj.loc[dfj.index != par]
+                    df_temp = dfj.loc[dfj.index != par]
+                    if len(df_temp.index) != len(dfj.index):
+                        dfj = df_temp
+                        change_flag = True
                 # add unshared settings back
                 elif par not in dfj.index.values:
                     if par in st.session_state['df_opt_config_default'][j].index.values:
@@ -40,14 +43,11 @@ def adjust_consecutive_configurations(reference_config):
                         dfj = pandas.concat([dfj, dfa.loc[dfa.index == par]])
                         dfj = dfj.sort_index()
                         # dfj.reset_index(inplace=True)
-            st.session_state['df_opt_config_associated'][j] = dfj.copy(deep=True)
-            # change key of data editor associated with that particular data frame
-            st.session_state['df_opt_config_key'] = str(time.time())
-
-
-def delete_config_data_editor_keys():
-    if 'df_opt_config_key' in st.session_state:
-        del st.session_state['df_opt_config_key']
+                        change_flag = True
+            if change_flag:
+                st.session_state['df_opt_config_associated'][j] = dfj.copy(deep=True)
+                # change key of data editor associated with that particular data frame
+                st.session_state['df_opt_config_key'] = str(time.time())
 
 
 def summarize_optimization_parameter_settings():
@@ -88,10 +88,11 @@ def summarize_optimization_parameter_settings():
 
     # add configuration settings
     df0 = st.session_state['df_opt_config_updated'][0]
+    num_config = len(st.session_state['df_opt_config_updated'])
     for i, config in enumerate(st.session_state['df_opt_config_updated']):
         for index, row in config.iterrows():
             parname = index
-            if parname in df0.index.values and df0.loc[index, 'shared']:
+            if parname in df0.index.values and (num_config == 1 or df0.loc[index, 'shared']):
                 parconfig = '*'
             else:
                 parconfig = str(i)
@@ -141,10 +142,13 @@ def update_df_config(config_list_select):
     for _ in range(len(df_config)):
         st.session_state['df_opt_config_associated'].append(None)
 
-    if 'df_opt_config_key' not in st.session_state:
-        st.session_state['df_opt_config_key'] = []
-        for _ in range(len(df_config)):
-            st.session_state['df_opt_config_key'].append(str(time.time()))
+    st.session_state['df_opt_config_key'] = []
+    for _ in range(len(df_config)):
+        st.session_state['df_opt_config_key'].append(str(time.time()))
+
+    print('---------config update --------------')
+    print('Length of default config list:')
+    print(len(st.session_state['df_opt_config_default']))
 
 # ------------  GUI -------------------
 file_path = user_sans_file_dir
@@ -184,7 +188,6 @@ with st.expander('Setup'):
         "Select from user directory",
         config_list,
         key='opt_config_selectbox',
-        on_change=delete_config_data_editor_keys
     )
     update_df_config(config_list_select)
 
@@ -225,7 +228,6 @@ with st.expander('Setup'):
     st.write("""
     ### Instrument Configurations
     """)
-
     if config_list_select:
         tablist = st.tabs(config_list_select)
         first_init_marker = False
@@ -270,13 +272,13 @@ with st.expander('Setup'):
                     )
 
                 st.session_state['df_opt_config_updated'][i] = df_config_edited.copy(deep=True)
-                # adjust only when first configuration changed, realized through function decorator
-                adjust_consecutive_configurations(st.session_state['df_opt_config_updated'][0])
+                if i == 0:
+                    adjust_consecutive_configurations(st.session_state['df_opt_config_updated'][i])
 
     st.write("""
     ### Simulated Scattering Background
     """)
-    if model_name is not None and config_list_select is not None:
+    if model_name is not None and config_list_select:
         col_opt_1, col_opt_2 = st.columns([1.5, 1])
         num_datasets = len(datafile_names)
         li_df = []
