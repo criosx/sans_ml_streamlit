@@ -102,7 +102,7 @@ def summarize_optimization_parameter_settings():
                 upper_opt = str(row['upper_opt'])
                 step_opt = str(row['step_opt'])
             else:
-                lfit = ufit= lower_opt = upper_opt = step_opt = ''
+                lfit = ufit = lower_opt = upper_opt = step_opt = ''
 
             li_summary.append(['n', '*', parconfig, parname, row['value'], lfit, ufit, lower_opt, upper_opt, step_opt])
 
@@ -112,14 +112,25 @@ def summarize_optimization_parameter_settings():
     return df_summary
 
 
-@st.cache_data
 def update_df_config(config_list_select):
-    df_config = []
+
+    # function argument homogeineization
     if config_list_select is not None:
         if not isinstance(config_list, list):
             config_list_select = [config_list_select]
-        for config_name in config_list_select:
-            df_config.append(pandas.read_json(os.path.join(config_path, config_name), orient='record'))
+    else:
+        config_list_select = []
+
+    # only run update if config_lisit_select has changed
+    if 'opt_config_list_select' in st.session_state and \
+            st.session_state['opt_config_list_select'] == config_list_select:
+        return
+    else:
+        st.session_state['opt_config_list_select'] = config_list_select
+
+    df_config = []
+    for config_name in config_list_select:
+        df_config.append(pandas.read_json(os.path.join(config_path, config_name), orient='record'))
 
     for i, config in enumerate(df_config):
         if len(df_config) > 1:
