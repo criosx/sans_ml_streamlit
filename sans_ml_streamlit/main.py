@@ -33,6 +33,10 @@ user_sans_fit_dir = os.path.join(streamlit_dir, 'SANS_fit')
 if not os.path.isdir(user_sans_fit_dir):
     os.mkdir(user_sans_fit_dir)
 
+user_sans_opt_dir = os.path.join(streamlit_dir, 'SANS_experimental_optimization')
+if not os.path.isdir(user_sans_opt_dir):
+    os.mkdir(user_sans_opt_dir)
+
 temp_dir = os.path.join(streamlit_dir, 'temp')
 if not os.path.isdir(temp_dir):
     os.mkdir(temp_dir)
@@ -65,6 +69,7 @@ st.session_state['user_sans_config_dir'] = user_sans_config_dir
 st.session_state['user_sans_model_dir'] = user_sans_model_dir
 st.session_state['user_sans_file_dir'] = user_sans_file_dir
 st.session_state['user_sans_fit_dir'] = user_sans_fit_dir
+st.session_state['user_sans_opt_dir'] = user_sans_opt_dir
 st.session_state['user_ml_model_dir'] = user_ml_model_dir
 st.session_state['example_sans_config_dir'] = example_config_dir
 st.session_state['app_functions_dir'] = app_functions_dir
@@ -75,6 +80,7 @@ df_folders = pandas.DataFrame({
     'SANS data': [st.session_state['user_sans_file_dir']],
     'SANS instrument configurations': [st.session_state['user_sans_config_dir']],
     'SANS fits': st.session_state['user_sans_fit_dir'],
+    'SANS experimental optimization': st.session_state['user_sans_opt_dir'],
     'ML models': [st.session_state['user_ml_model_dir']]
 })
 

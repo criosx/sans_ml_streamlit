@@ -1,3 +1,4 @@
+import glob
 import os
 from PIL import Image
 import pandas
@@ -94,6 +95,23 @@ def load_sans_files(filelist, file_dir):
             pass
 
 
+def monitor_jobs(job_dir):
+    status_path = os.path.join(job_dir, 'status.json')
+
+    if not os.path.isfile(status_path):
+        status = 'idle'
+    else:
+        status_df = pandas.read_json(status_path)
+        status = status_df['status'].values[0]
+
+    # last modification to top experimental optimization folder
+    list_of_files = glob.glob(job_dir)
+    latest_file = max(list_of_files, key=os.path.getctime)
+    jobtime = os.path.getctime(latest_file)
+
+    return jobtime, status
+
+
 def run_fit(fitdir=None, runfile=None, datafile_names=None, datafile_names_uploaded=None, file_dir=None, model_dir=None,
             burn=1000, steps=200):
     # save current working directory
@@ -160,3 +178,19 @@ def run_fit(fitdir=None, runfile=None, datafile_names=None, datafile_names_uploa
 
     os.chdir(olddir)
     return
+
+
+def run_optimization(optdir=None, runfile=None, file_dir=None, model_dir=None, burn=1000, steps=200):
+
+    datafile_names = api_sasview.extract_data_filenames_from_runfile(runfile=runfile)
+    for file in datafile_names:
+        dfile = os.path.join(file_dir, file)
+        if not os.path.isfile(dfile):
+            infostr = 'Data file ' + file + ' not in user file folder. Please set up complete fit under Models and Fit'
+            st.info(infostr)
+            return
+
+    datafpaths = [os.path.join(file_dir, file) for file in datafile_names]
+    molstat.prepare_fit_directory(fitdir=optdir, runfile=os.path.join(model_dir, runfile), datafile_names=datafpaths)
+
+    # TODO: copy optimization specific files
