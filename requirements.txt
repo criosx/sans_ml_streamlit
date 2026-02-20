@@ -1,4 +1,5 @@
 bumps
+datalad
 matplotlib
 numpy
 pandas

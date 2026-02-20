@@ -2,12 +2,16 @@ import glob
 import os
 from PIL import Image
 import pandas
+from pathlib import Path
+from roadmap_datamanager import datamanager
 from sasmodels.data import load_data
 from scattertools.support import molstat
 from scattertools.support import api_sasview
 import shutil
 import streamlit as st
 import subprocess
+
+from sans_app.support import configuration
 
 
 def get_info_from_runfile(model_name, model_dir, file_dir, fit_dir):
@@ -194,3 +198,85 @@ def run_optimization(optdir=None, runfile=None, file_dir=None, model_dir=None, b
     molstat.prepare_fit_directory(fitdir=optdir, runfile=os.path.join(model_dir, runfile), datafile_names=datafpaths)
 
     # TODO: copy optimization specific files
+
+def setup_app_dirs():
+    # check if canonical app working directories exist
+    app_dir = Path.home() / "app_data"
+    app_dir.mkdir(parents=True, exist_ok=True)
+
+    streamlit_dir = app_dir / "streamlit_sans_ml"
+    streamlit_dir.mkdir(parents=True, exist_ok=True)
+
+    cfg = configuration.load_persistent_cfg()
+    st.session_state["cfg"] = cfg
+    st.session_state['streamlit_dir'] = streamlit_dir
+
+    if cfg.dm_root is None:
+        cfg.dm_root = str(streamlit_dir)
+        configuration.save_persistent_cfg(cfg)
+
+    if cfg.project is None or cfg.campaign is None or cfg.experiment is None:
+        st.session_state["data_folders_ready"] = False
+    else:
+        st.session_state["data_folders_ready"] = True
+        exp_root = streamlit_dir / cfg.project / cfg.campaign / cfg.experiment
+        exp_root.mkdir(parents=True, exist_ok=True)
+
+        user_sans_config_dir = exp_root / 'SANS_configurations'
+        user_sans_config_dir.mkdir(parents=True, exist_ok=True)
+        user_ml_model_dir = exp_root / 'ml_models'
+        user_ml_model_dir.mkdir(parents=True, exist_ok=True)
+        user_sans_model_dir = exp_root / 'SANS_models'
+        user_sans_model_dir.mkdir(parents=True, exist_ok=True)
+        user_sans_file_dir = exp_root / 'SANS_files'
+        user_sans_file_dir.mkdir(parents=True, exist_ok=True)
+        user_sans_fit_dir = exp_root / 'SANS_fit'
+        user_sans_fit_dir.mkdir(parents=True, exist_ok=True)
+        user_sans_opt_dir = exp_root / 'SANS_experimental_optimization'
+        user_sans_opt_dir.mkdir(parents=True, exist_ok=True)
+        temp_dir = exp_root / 'temp'
+        temp_dir.mkdir(parents=True, exist_ok=True)
+
+        # Copy example SANS models into user model directory if not already present.
+        # This makes sure that a new user always has a selection of models available.
+        example_model_dir = Path(__file__).parent.parent / "example_SANS_models"
+        for src in example_model_dir.iterdir():
+            dst = Path(user_sans_model_dir) / src.name
+            if src.is_file() and not dst.exists():
+                shutil.copyfile(src, dst)
+
+        # For similar reasons, copy one data file to the user directory. This data file is the default for the example models.
+        src = Path(__file__).parent.parent / 'example_SANS_files' / 'data0.dat'
+        dst = Path(user_sans_model_dir) / 'data0.dat'
+        if not dst.exists():
+            shutil.copyfile(src, dst)
+
+        # And do this for configurations
+        example_config_dir = os.path.join(str(Path(__file__).parent.parent), 'example_SANS_configurations')
+        config_files = [f for f in os.listdir(example_config_dir)]
+        for file in config_files:
+            if not os.path.isfile(os.path.join(user_sans_config_dir, file)):
+                shutil.copyfile(os.path.join(example_config_dir, file), os.path.join(user_sans_config_dir, file))
+
+        # save paths to persistent session state
+        st.session_state['user_sans_config_dir'] = user_sans_config_dir
+        st.session_state['user_sans_model_dir'] = user_sans_model_dir
+        st.session_state['user_sans_file_dir'] = user_sans_file_dir
+        st.session_state['user_sans_fit_dir'] = user_sans_fit_dir
+        st.session_state['user_sans_opt_dir'] = user_sans_opt_dir
+        st.session_state['user_ml_model_dir'] = user_ml_model_dir
+        st.session_state['example_sans_config_dir'] = example_config_dir
+
+        dm = datamanager.DataManager(
+            root= streamlit_dir,
+            user_name = cfg.user_name,
+            user_email = cfg.user_email,
+            default_project = cfg.project,
+            default_campaign = cfg.campaign,
+            GIN_url = cfg.GIN_url,
+            GIN_repo = cfg.GIN_repo,
+            GIN_user = cfg.GIN_user
+        )
+        st.session_state['datamanager'] = dm
+        # ensure that data structure is a datalad tree
+        dm.init_tree(project=cfg.project, campaign=cfg.campaign, experiment=cfg.experiment)
