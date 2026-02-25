@@ -35,8 +35,8 @@ class DataConfig:
     GIN_repo: Optional[str] = None
     GIN_user: Optional[str] = None
 
-    # Datamanager root directory
-    dm_root: Optional[str] = None
+    # Datamanager root directory (currently disabled as it is derived from app directory and username
+    # dm_root: Optional[str] = None
 
 
 def default_config_path() -> Path:

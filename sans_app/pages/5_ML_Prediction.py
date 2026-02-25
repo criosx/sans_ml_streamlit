@@ -8,6 +8,10 @@ from sasmodels.data import load_data
 import tensorflow as tf
 import time
 
+if not st.session_state["data_folders_ready"]:
+    st.info("Files and Folders not set up. Please visit the File System tab.")
+    st.stop()
+
 if not os.path.isdir('temp'):
     os.makedirs('temp')
 

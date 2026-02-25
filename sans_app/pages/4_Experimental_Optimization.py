@@ -6,10 +6,11 @@ from scattertools.support import api_sasview
 import shutil
 import streamlit as st
 import time
+from sans_app.support import app_functions
 
-import sys
-sys.path.append(st.session_state['app_functions_dir'])
-import app_functions
+if not st.session_state["data_folders_ready"]:
+    st.info("Files and Folders not set up. Please visit the File System tab.")
+    st.stop()
 
 user_sans_opt_dir = st.session_state['user_sans_opt_dir']
 user_sans_model_dir = st.session_state['user_sans_model_dir']
