@@ -1,7 +1,7 @@
 import json
 import os
 
-from dataclasses import dataclass, fields
+from dataclasses import asdict, dataclass, fields
 from pathlib import Path
 from typing import Optional
 
@@ -28,9 +28,11 @@ class DataConfig:
     experiment: Optional[str] = None
 
     # DataLad behavior
+    use_datalad: bool = False
     datalad_profile: Optional[str] = None
 
     # GIN repository
+    use_gin: bool = False
     GIN_url: Optional[str] = None
     GIN_repo: Optional[str] = None
     GIN_user: Optional[str] = None
@@ -81,4 +83,4 @@ def save_persistent_cfg(data: DataConfig | dict) -> None:
     if isinstance(data, DataConfig):
         payload = {f.name: getattr(data, f.name) for f in fields(DataConfig)}
 
-    cfg_path.write_text(json.dumps(payload, indent=2))
+    cfg_path.write_text(json.dumps(asdict(payload), indent=2))

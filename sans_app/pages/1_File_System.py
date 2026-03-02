@@ -1,3 +1,4 @@
+import json
 import subprocess
 import platform
 from pathlib import Path
@@ -59,7 +60,7 @@ if st.session_state.cfg.user_name is None:
 
 st.session_state.dataroot_dir = st.session_state.app_dir / cfg.user_name
 
-col1, col2 = st.columns([7, 3])
+col1, col2, col3 = st.columns([6, 1, 3])
 info_text = "Data root directory " + str(st.session_state.dataroot_dir)
 if st.session_state.dataroot_dir.is_dir():
     info_text += " exists."
@@ -71,7 +72,7 @@ else:
     info_text += " has not been created, yet."
     with col1:
         st.text(info_text)
-    with col2:
+    with col3:
         if st.button("Create Data Root Directory", type='primary'):
             st.session_state.dataroot_dir.mkdir(parents=True, exist_ok=True)
             st.rerun()
@@ -150,29 +151,98 @@ if experiment and experiment != st.session_state.cfg.experiment:
 if st.session_state.cfg.experiment is None:
     st.stop()
 
-col3, col4 = st.columns([7, 3])
+col4, col5, col6 = st.columns([6, 1, 3])
 exp_dir = root / st.session_state.cfg.experiment
 info_text = "Experiment directory " + str(exp_dir)
 if exp_dir.is_dir():
     info_text += " exists."
-    with col3:
-        st.text(info_text)
     with col4:
+        st.text(info_text)
+    with col5:
         file_browser_button(exp_dir)
+    with col6:
         if st.button("Copy Examples into Experiment Directory"):
             app_functions.setup_app_dirs(create_dirs=True, copy_examples=True)
 else:
     info_text += " has not been created, yet."
-    with col3:
-        st.text(info_text)
     with col4:
+        st.text(info_text)
+    with col6:
         if st.button("Create Experimental Directory", type='primary'):
-            exp_dir.mkdir(parents=True, exist_ok=True)
+            # exp_dir.mkdir(parents=True, exist_ok=True)
+            app_functions.setup_app_dirs(create_dirs=True)
             st.rerun()
+    st.stop()
 
 st.write("""
 ## DataLad
 """)
+
+use_datalad = st.toggle(label='Use DataLad', value=st.session_state.cfg.use_datalad)
+if use_datalad != st.session_state.cfg.use_datalad:
+    st.info(use_datalad)
+    st.session_state.cfg.use_datalad = use_datalad
+    st.info(st.session_state.cfg)
+    configuration.save_persistent_cfg(st.session_state.cfg)
+
+if not st.session_state.cfg.use_datalad:
+    st.stop()
+
+app_functions.setup_app_dirs(create_dirs=False, copy_examples=False, init_datalad=True)
+dm = st.session_state.datamanager
+
+root_dir = st.session_state.dataroot_dir
+project_dir = root_dir / st.session_state.cfg.project
+campaign_dir = project_dir / st.session_state.cfg.campaign
+exp_dir = campaign_dir / st.session_state.cfg.experiment
+
+_, r_installed, r_status = st.session_state.datamanager.get_status(dataset=root_dir, recursive=False)
+_, p_installed, p_status = st.session_state.datamanager.get_status(dataset=project_dir, recursive=False)
+_, c_installed, c_status = st.session_state.datamanager.get_status(dataset=campaign_dir, recursive=False)
+_, e_installed, e_status = st.session_state.datamanager.get_status(dataset=exp_dir, recursive=False)
+ds_installed = r_installed and p_installed and c_installed and e_installed
+
+
+#all dirs exists at this point in the script as checked above
+col5, col6 = st.columns([7, 3])
+if not ds_installed:
+    with col5:
+        st.info('DataLad branch (project / campaign / experiment) is not (fully) initialized.')
+    with col6:
+        if st.button("Initialize DataLad Tree.", type='primary'):
+            # ensure that data structure is a datalad tree
+            dm.init_tree(project=cfg.project, campaign=cfg.campaign, experiment=cfg.experiment, force=True)
+            st.rerun()
+    st.stop()
+else:
+    # st.info(e_status)
+    status = r_status + p_status + c_status + e_status
+    clean = True
+    for element in status:
+        if element['state'] != 'clean':
+            clean = False
+    if clean:
+        with col5:
+            st.text('DataLad branch (project / campaign / experiment) is saved (clean).')
+    else:
+        with col5:
+            st.info('DataLad branch (project / campaign / experiment) has unsaved changes.')
+        with col6:
+            if st.button("Save DataLad Branch.", type='primary'):
+                dm.save(path=exp_dir, recursive=True)
+                dm.save(path=campaign_dir, recursive=False)
+                dm.save(path=project_dir, recursive=False)
+                dm.save(path=root_dir, recursive=False)
+                st.rerun()
+        st.stop()
+
+with st.expander(label='Detailed Status', expanded=False):
+    only_non_clean = st.toggle(label='Show only non-clean entries.', value=True)
+    if only_non_clean:
+        status = [element for element in status if element['state']!='clean']
+    # Pretty-print the combined DataLad status (list of dicts) as JSON.
+    st.text(json.dumps(status, indent=2, sort_keys=True, default=str))
+
 
 st.write("""
 ## GIN Remote Storage

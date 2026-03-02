@@ -199,7 +199,17 @@ def run_optimization(optdir=None, runfile=None, file_dir=None, model_dir=None, b
 
     # TODO: copy optimization specific files
 
-def setup_app_dirs(create_dirs=False, copy_examples=False):
+def setup_app_dirs(
+        create_dirs=False,
+        copy_examples=False,
+        init_datalad=False):
+    """
+    Sets up directories for app use. Initializes the datamanager.
+    :param create_dirs: (bool) whether to create directories if they do not exist
+    :param copy_examples: (bool) whether to copy provided examples to user folders
+    :param init_datalad: (bool) whether to initialize the DataLad repo in the app dir tree
+    :return:
+    """
     # check if canonical app working directories exist
     app_dir = Path.home() / "app_data" / "sans_app"
     app_dir.mkdir(parents=True, exist_ok=True)
@@ -217,14 +227,13 @@ def setup_app_dirs(create_dirs=False, copy_examples=False):
         st.session_state["data_folders_ready"] = False
         return
 
-    if not create_dirs:
+    exp_root = dataroot_dir / cfg.project / cfg.campaign / cfg.experiment
+    if not (exp_root.is_dir() or create_dirs):
         st.session_state["data_folders_ready"] = False
         return
 
     st.session_state["data_folders_ready"] = True
     dataroot_dir.mkdir(parents=True, exist_ok=True)
-
-    exp_root = dataroot_dir / cfg.project / cfg.campaign / cfg.experiment
     exp_root.mkdir(parents=True, exist_ok=True)
 
     user_sans_config_dir = exp_root / 'SANS_configurations'
@@ -274,16 +283,18 @@ def setup_app_dirs(create_dirs=False, copy_examples=False):
 
     # st.session_state['example_sans_config_dir'] = example_config_dir
 
-    dm = datamanager.DataManager(
-        root= dataroot_dir,
-        user_name = cfg.user_name,
-        user_email = cfg.user_email,
-        default_project = cfg.project,
-        default_campaign = cfg.campaign,
-        GIN_url = cfg.GIN_url,
-        GIN_repo = cfg.GIN_repo,
-        GIN_user = cfg.GIN_user
-    )
-    st.session_state['datamanager'] = dm
-    # ensure that data structure is a datalad tree
-    dm.init_tree(project=cfg.project, campaign=cfg.campaign, experiment=cfg.experiment)
+    if init_datalad:
+        dm = datamanager.DataManager(
+            root= dataroot_dir,
+            user_name = cfg.user_name,
+            user_email = cfg.user_email,
+            default_project = cfg.project,
+            default_campaign = cfg.campaign,
+            GIN_url = cfg.GIN_url,
+            GIN_repo = cfg.GIN_repo,
+            GIN_user = cfg.GIN_user,
+            verbose=True
+        )
+        st.session_state['datamanager'] = dm
+    else:
+        st.session_state['datamanager'] = None

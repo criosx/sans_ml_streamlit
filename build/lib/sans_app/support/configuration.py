@@ -28,9 +28,11 @@ class DataConfig:
     experiment: Optional[str] = None
 
     # DataLad behavior
+    use_datalad: bool = False
     datalad_profile: Optional[str] = None
 
     # GIN repository
+    use_gin: bool = False
     GIN_url: Optional[str] = None
     GIN_repo: Optional[str] = None
     GIN_user: Optional[str] = None

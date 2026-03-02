@@ -1,12 +1,10 @@
-import os
+
 import pandas
-from pathlib import Path
-import shutil
 import streamlit as st
 
 from sans_app.support import app_functions
 
-app_functions.setup_app_dirs(create_dirs=False, copy_examples=False)
+app_functions.setup_app_dirs(create_dirs=False, copy_examples=False, init_datalad=False)
 
 if st.session_state["data_folders_ready"]:
     df_folders = pandas.DataFrame({
