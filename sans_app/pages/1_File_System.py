@@ -180,9 +180,7 @@ st.write("""
 
 use_datalad = st.toggle(label='Use DataLad', value=st.session_state.cfg.use_datalad)
 if use_datalad != st.session_state.cfg.use_datalad:
-    st.info(use_datalad)
     st.session_state.cfg.use_datalad = use_datalad
-    st.info(st.session_state.cfg)
     configuration.save_persistent_cfg(st.session_state.cfg)
 
 if not st.session_state.cfg.use_datalad:
@@ -247,3 +245,23 @@ with st.expander(label='Detailed Status', expanded=False):
 st.write("""
 ## GIN Remote Storage
 """)
+
+use_GIN = st.toggle(label='Use GIN', value=st.session_state.cfg.use_GIN)
+if use_GIN != st.session_state.cfg.use_GIN:
+    st.session_state.cfg.use_GIN= use_GIN
+    configuration.save_persistent_cfg(st.session_state.cfg)
+
+if not use_GIN:
+    st.stop()
+
+gin_user = st.text_input('GIN User', value=st.session_state.cfg.GIN_user)
+if gin_user is not None and  gin_user != st.session_state.cfg.GIN_user:
+    st.session_state.cfg.GIN_user = gin_user
+    configuration.save_persistent_cfg(st.session_state.cfg)
+
+gin_url = st.text_input('GIN URL', value=st.session_state.cfg.GIN_url)
+if gin_url is not None and gin_url != st.session_state.cfg.GIN_url:
+    st.session_state.cfg.GIN_url = gin_url
+    configuration.save_persistent_cfg(st.session_state.cfg)
+
+

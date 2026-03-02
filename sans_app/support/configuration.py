@@ -32,13 +32,10 @@ class DataConfig:
     datalad_profile: Optional[str] = None
 
     # GIN repository
-    use_gin: bool = False
-    GIN_url: Optional[str] = None
-    GIN_repo: Optional[str] = None
-    GIN_user: Optional[str] = None
-
-    # Datamanager root directory (currently disabled as it is derived from app directory and username
-    # dm_root: Optional[str] = None
+    use_GIN: bool = False
+    GIN_url: Optional[str] = 'git@gin.g-node.org'
+    GIN_repo: Optional[str] = 'datamanager'
+    GIN_user: Optional[str] = 'fhein'
 
 
 def default_config_path() -> Path:
@@ -79,8 +76,8 @@ def save_persistent_cfg(data: DataConfig | dict) -> None:
     cfg_path = default_config_path()
     cfg_path.parent.mkdir(parents=True, exist_ok=True)
 
-    payload = data
-    if isinstance(data, DataConfig):
-        payload = {f.name: getattr(data, f.name) for f in fields(DataConfig)}
+    #payload = data
+    #if isinstance(data, DataConfig):
+    #    payload = {f.name: getattr(data, f.name) for f in fields(DataConfig)}
 
-    cfg_path.write_text(json.dumps(asdict(payload), indent=2))
+    cfg_path.write_text(json.dumps(asdict(data), indent=2))
