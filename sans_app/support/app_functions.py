@@ -355,6 +355,52 @@ def ssh_config_has_entry(host_alias: str, hostname: str | None = None, username:
 
     return False, f"No SSH config entry for host '{host_alias}'."
 
+def ssh_default_key_path(hostname: str, username: str) -> Path:
+    safe_host = hostname.replace(".", "_").replace("/", "_")
+    safe_user = username.replace(".", "_").replace("/", "_")
+    return Path.home() / ".ssh" / f"id_ed25519_{safe_user}_{safe_host}"
+
+def ssh_ensure_ssh_dir() -> Path:
+    ssh_dir = Path.home() / ".ssh"
+    ssh_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
+    try:
+        os.chmod(ssh_dir, 0o700)
+    except OSError:
+        pass
+    return ssh_dir
+
+def ssh_generate_keypair(private_key_path: Path, comment: str = "") -> tuple[bool, str]:
+    ssh_ensure_ssh_dir()
+
+    if private_key_path.exists() or private_key_path.with_suffix(".pub").exists():
+        return False, f"Key file already exists: {private_key_path}"
+
+    cmd = [
+        "ssh-keygen",
+        "-t", "ed25519",
+        "-f", str(private_key_path),
+        "-N", "",
+    ]
+    if comment:
+        cmd.extend(["-C", comment])
+
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+    except FileNotFoundError:
+        return False, "ssh-keygen was not found on this system."
+    except subprocess.CalledProcessError as exc:
+        stderr = (exc.stderr or "").strip()
+        stdout = (exc.stdout or "").strip()
+        message = stderr if stderr else stdout if stdout else str(exc)
+        return False, f"ssh-keygen failed: {message}"
+
+    try:
+        os.chmod(private_key_path, 0o600)
+    except OSError:
+        pass
+
+    output = (result.stdout or "").strip()
+    return True, output if output else f"Created SSH key pair at {private_key_path}"
 
 def ssh_test_connection(host_alias: str) -> tuple[bool, str, str]:
     """
@@ -405,4 +451,3 @@ def ssh_test_connection(host_alias: str) -> tuple[bool, str, str]:
         return True, f"SSH connection to '{host_alias}' succeeded.", combined
 
     return False, f"SSH connection to '{host_alias}' failed.", combined
-

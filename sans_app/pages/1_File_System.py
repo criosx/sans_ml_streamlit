@@ -254,42 +254,78 @@ if use_GIN != st.session_state.cfg.use_GIN:
 if not use_GIN:
     st.stop()
 
-gin_user = st.text_input('GIN User', value=st.session_state.cfg.GIN_user)
-if gin_user is not None and  gin_user != st.session_state.cfg.GIN_user:
-    st.session_state.cfg.GIN_user = gin_user
-    configuration.save_persistent_cfg(st.session_state.cfg)
+with st.expander(label='Connection Setup', expanded=False):
 
-ssh_hostname = st.text_input('GIN URL / SSH Host Name', value=st.session_state.cfg.GIN_url)
-if ssh_hostname != st.session_state.cfg.GIN_url:
-    st.session_state.cfg.GIN_url = ssh_hostname
-    configuration.save_persistent_cfg(st.session_state.cfg)
+    gin_user = st.text_input('GIN User', value=st.session_state.cfg.GIN_user)
+    if gin_user is not None and  gin_user != st.session_state.cfg.GIN_user:
+        st.session_state.cfg.GIN_user = gin_user
+        configuration.save_persistent_cfg(st.session_state.cfg)
 
-ssh_host_alias = st.text_input('GIN / SSH Host Alias for .ssh/config', value=st.session_state.cfg.SSH_host_alias)
-if ssh_host_alias != st.session_state.cfg.SSH_host_alias:
-    st.session_state.cfg.SSH_host_alias = ssh_host_alias
-    configuration.save_persistent_cfg(st.session_state.cfg)
+    ssh_hostname = st.text_input('GIN URL / SSH Host Name', value=st.session_state.cfg.GIN_url)
+    if ssh_hostname != st.session_state.cfg.GIN_url:
+        st.session_state.cfg.GIN_url = ssh_hostname
+        configuration.save_persistent_cfg(st.session_state.cfg)
 
-st.text("We use SSH key authentication for communicating with GIN. This section will ensure the proper key setup.")
+    ssh_host_alias = st.text_input('GIN / SSH Host Alias for .ssh/config', value=st.session_state.cfg.SSH_host_alias)
+    if ssh_host_alias != st.session_state.cfg.SSH_host_alias:
+        st.session_state.cfg.SSH_host_alias = ssh_host_alias
+        configuration.save_persistent_cfg(st.session_state.cfg)
 
-# GIN SSH UI section (example snippet)
-ssh_host_alias_default = ssh_hostname
-ssh_host_user = 'git' if ssh_hostname == 'gin.g-node.org' else gin_user
+    st.text("We use SSH key authentication for communicating with GIN. This section will ensure the proper key setup.")
 
-config_file = app_functions.ssh_config_path()
-found, message = app_functions.ssh_config_has_entry(ssh_host_alias, ssh_hostname, ssh_host_user)
+    # GIN SSH UI section (example snippet)
+    ssh_host_alias_default = ssh_hostname
+    ssh_host_user = 'git' if ssh_hostname == 'gin.g-node.org' else gin_user
 
-if found:
-    st.success(message)
-else:
-    st.info(message)
-    st.stop()
+    config_file = app_functions.ssh_config_path()
+    found, message = app_functions.ssh_config_has_entry(ssh_host_alias, ssh_hostname, ssh_host_user)
 
-if st.button("Test SSH Connection", type='primary'):
-    ok, summary, details = app_functions.ssh_test_connection(ssh_host_alias)
-    if ok:
-        st.success(summary)
+    suggested_private_key = app_functions.ssh_default_key_path(ssh_hostname, ssh_host_user)
+    private_key_path = Path(suggested_private_key).expanduser()
+    public_key_path = private_key_path.with_suffix('.pub')
+
+    if found:
+        st.success(message)
+        if public_key_path.exists():
+            st.text(f"Here is the folder with you public key '{str(public_key_path.name)}' that should be provided to "
+                    f"your gin.g-node.org account.")
+        else:
+            st.text(f"Although an entry for the host and user was found in the SSH config file, no key was found under "
+                    f"the canonical name: '{str(public_key_path.name)}'. It might be missing or under a different name."
+                    f" Either regenerate a new key pair or provide the differently named key to gin.g-node.org. Inspect"
+                    f" or clean up .ssh/config for a coherent setup.")
     else:
-        st.error(summary)
-    if details:
-        st.code(details)
-    st.caption(f"Command: {shlex.join(['ssh', '-T', '-o', 'BatchMode=yes', ssh_host_alias])}")
+        st.info(message)
+        if st.button("Create new SSH key pair."):
+
+
+            st.text("This creates an SSH ed25519 key pair locally. You can then copy the public key into your GIN "
+                    "account manually.")
+
+            comment = f"{ssh_host_user}@{ssh_hostname}"
+            success, message = app_functions.ssh_generate_keypair(private_key_path=private_key_path, comment=comment)
+            if success:
+                st.success(message)
+            else:
+                st.error(message)
+        st.stop()
+
+    col7, col8, col9 = st.columns([3, 4, 3])
+    with col7:
+        file_browser_button(public_key_path.parent, label="Show SSH Directory ↗️")
+    with col8:
+        if st.button("Test SSH Connection", type='primary'):
+            ok, summary, details = app_functions.ssh_test_connection(ssh_host_alias)
+            if ok:
+                st.success(summary)
+            else:
+                st.error(summary)
+            if details:
+                st.code(details)
+            st.caption(f"Command: {shlex.join(['ssh', '-T', '-o', 'BatchMode=yes', ssh_host_alias])}")
+
+            if not ok:
+                st.stop()
+
+with st.expander(label='Repository Actions', expanded=True):
+    pass
