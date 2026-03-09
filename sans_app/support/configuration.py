@@ -33,9 +33,10 @@ class DataConfig:
 
     # GIN repository
     use_GIN: bool = False
-    GIN_url: Optional[str] = 'git@gin.g-node.org'
+    GIN_url: Optional[str] = 'gin.g-node.org'
     GIN_repo: Optional[str] = 'datamanager'
     GIN_user: Optional[str] = 'fhein'
+    SSH_host_alias: Optional[str] = 'gin.g-node.org'
 
 
 def default_config_path() -> Path:

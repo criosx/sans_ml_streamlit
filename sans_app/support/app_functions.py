@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import glob
 import os
 from PIL import Image
@@ -10,6 +12,7 @@ from scattertools.support import api_sasview
 import shutil
 import streamlit as st
 import subprocess
+from typing import Optional, Dict, Any
 
 from sans_app.support import configuration
 
@@ -298,3 +301,108 @@ def setup_app_dirs(
         st.session_state['datamanager'] = dm
     else:
         st.session_state['datamanager'] = None
+
+
+def ssh_config_block(host_alias: str, hostname: str, username: str) -> str:
+    return (
+        f"Host {host_alias}\n"
+        f"    HostName {hostname}\n"
+        f"    User {username}\n"
+    )
+
+
+def ssh_config_path() -> Path:
+    # Standard location across macOS, Linux, and most Windows OpenSSH installs
+    return Path.home() / ".ssh" / "config"
+
+
+def ssh_config_has_entry(host_alias: str, hostname: str | None = None, username: str | None = None) -> tuple[bool, str]:
+    """
+    Checks whether an entry for the host already exists in ~/.ssh/config.
+    Returns (found, message).
+    """
+
+    config_file = ssh_config_path()
+
+    if not config_file.exists():
+        return False, f"SSH config file does not exist yet: {config_file}"
+
+    try:
+        text = config_file.read_text(encoding="utf-8")
+    except Exception as exc:
+        return False, f"Could not read SSH config: {exc}"
+
+    lines = text.splitlines()
+
+    current_host = None
+    host_blocks = {}
+
+    for line in lines:
+        stripped = line.strip()
+        if stripped.lower().startswith("host "):
+            current_host = stripped.split(maxsplit=1)[1]
+            host_blocks[current_host] = []
+        elif current_host:
+            host_blocks[current_host].append(stripped)
+
+    if host_alias in host_blocks:
+        block = "\n".join(host_blocks[host_alias])
+        if hostname and f"hostname {hostname}".lower() not in block.lower():
+            return True, f"Host '{host_alias}' exists but different from hostname ({hostname})."
+        if username and f"user {username}".lower() not in block.lower():
+            return True, f"Host '{host_alias}' exists but user differs."
+        return True, f"Host '{host_alias}' exists in {config_file}."
+
+    return False, f"No SSH config entry for host '{host_alias}'."
+
+
+def ssh_test_connection(host_alias: str) -> tuple[bool, str, str]:
+    """
+    Test SSH connectivity using the configured host alias.
+    Returns (success, summary_message, detailed_output).
+    """
+    cmd = [
+        "ssh",
+        "-T",
+        "-o", "BatchMode=yes",
+        host_alias,
+    ]
+
+    try:
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=15,
+            check=False,
+        )
+    except FileNotFoundError:
+        return False, "ssh was not found on this system.", ""
+    except subprocess.TimeoutExpired:
+        return False, f"SSH connection test timed out for host '{host_alias}'.", ""
+    except Exception as exc:
+        return False, f"SSH connection test failed: {exc}", ""
+
+    stdout = (result.stdout or "").strip()
+    stderr = (result.stderr or "").strip()
+    combined = "\n".join(part for part in [stdout, stderr] if part).strip()
+
+    success_markers = [
+        "successfully authenticated",
+        "welcome to gin",
+        "you've successfully authenticated",
+    ]
+    permission_markers = [
+        "shell access is not supported",
+        "pty allocation request failed",
+    ]
+
+    lowered = combined.lower()
+    if any(marker in lowered for marker in success_markers) or any(marker in lowered for marker in permission_markers):
+        return True, f"SSH connection to '{host_alias}' appears to work.", combined
+
+    if result.returncode == 0:
+        return True, f"SSH connection to '{host_alias}' succeeded.", combined
+
+    return False, f"SSH connection to '{host_alias}' failed.", combined
+

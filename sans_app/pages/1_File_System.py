@@ -2,6 +2,7 @@ import json
 import subprocess
 import platform
 from pathlib import Path
+import shlex
 
 import streamlit as st
 from sans_app.support import configuration
@@ -200,7 +201,6 @@ _, c_installed, c_status = st.session_state.datamanager.get_status(dataset=campa
 _, e_installed, e_status = st.session_state.datamanager.get_status(dataset=exp_dir, recursive=False)
 ds_installed = r_installed and p_installed and c_installed and e_installed
 
-
 #all dirs exists at this point in the script as checked above
 col5, col6 = st.columns([7, 3])
 if not ds_installed:
@@ -248,7 +248,7 @@ st.write("""
 
 use_GIN = st.toggle(label='Use GIN', value=st.session_state.cfg.use_GIN)
 if use_GIN != st.session_state.cfg.use_GIN:
-    st.session_state.cfg.use_GIN= use_GIN
+    st.session_state.cfg.use_GIN = use_GIN
     configuration.save_persistent_cfg(st.session_state.cfg)
 
 if not use_GIN:
@@ -259,9 +259,37 @@ if gin_user is not None and  gin_user != st.session_state.cfg.GIN_user:
     st.session_state.cfg.GIN_user = gin_user
     configuration.save_persistent_cfg(st.session_state.cfg)
 
-gin_url = st.text_input('GIN URL', value=st.session_state.cfg.GIN_url)
-if gin_url is not None and gin_url != st.session_state.cfg.GIN_url:
-    st.session_state.cfg.GIN_url = gin_url
+ssh_hostname = st.text_input('GIN URL / SSH Host Name', value=st.session_state.cfg.GIN_url)
+if ssh_hostname != st.session_state.cfg.GIN_url:
+    st.session_state.cfg.GIN_url = ssh_hostname
     configuration.save_persistent_cfg(st.session_state.cfg)
 
+ssh_host_alias = st.text_input('GIN / SSH Host Alias for .ssh/config', value=st.session_state.cfg.SSH_host_alias)
+if ssh_host_alias != st.session_state.cfg.SSH_host_alias:
+    st.session_state.cfg.SSH_host_alias = ssh_host_alias
+    configuration.save_persistent_cfg(st.session_state.cfg)
 
+st.text("We use SSH key authentication for communicating with GIN. This section will ensure the proper key setup.")
+
+# GIN SSH UI section (example snippet)
+ssh_host_alias_default = ssh_hostname
+ssh_host_user = 'git' if ssh_hostname == 'gin.g-node.org' else gin_user
+
+config_file = app_functions.ssh_config_path()
+found, message = app_functions.ssh_config_has_entry(ssh_host_alias, ssh_hostname, ssh_host_user)
+
+if found:
+    st.success(message)
+else:
+    st.info(message)
+    st.stop()
+
+if st.button("Test SSH Connection", type='primary'):
+    ok, summary, details = app_functions.ssh_test_connection(ssh_host_alias)
+    if ok:
+        st.success(summary)
+    else:
+        st.error(summary)
+    if details:
+        st.code(details)
+    st.caption(f"Command: {shlex.join(['ssh', '-T', '-o', 'BatchMode=yes', ssh_host_alias])}")
