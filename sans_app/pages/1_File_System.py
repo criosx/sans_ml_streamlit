@@ -37,7 +37,7 @@ user_list = []
 default_user = None
 root = st.session_state.app_dir
 if root.is_dir():
-    user_list = [p.name for p in root.iterdir() if p.is_dir()]
+    user_list = [p.name for p in root.iterdir() if p.is_dir() and not p.name.startswith(".")]
     user_list.sort()
 if st.session_state.cfg.user_name is not None:
     if st.session_state.cfg.user_name not in user_list:
@@ -87,7 +87,7 @@ project_list = []
 default_project = None
 root = st.session_state.dataroot_dir
 if root.is_dir():
-    project_list = [p.name for p in root.iterdir() if p.is_dir()]
+    project_list = [p.name for p in root.iterdir() if p.is_dir() and not p.name.startswith(".")]
     project_list.sort()
 if st.session_state.cfg.project is not None:
     if st.session_state.cfg.project not in project_list:
@@ -110,7 +110,7 @@ campaign_list = []
 default_campaign = None
 root = st.session_state.dataroot_dir / st.session_state.cfg.project
 if root.is_dir():
-    campaign_list = [p.name for p in root.iterdir() if p.is_dir()]
+    campaign_list = [p.name for p in root.iterdir() if p.is_dir() and not p.name.startswith(".")]
     campaign_list.sort()
 if st.session_state.cfg.campaign is not None:
     if st.session_state.cfg.campaign not in campaign_list:
@@ -133,7 +133,7 @@ experiment_list = []
 default_experiment = None
 root = st.session_state.dataroot_dir / st.session_state.cfg.project / st.session_state.cfg.campaign
 if root.is_dir():
-    experiment_list = [p.name for p in root.iterdir() if p.is_dir()]
+    experiment_list = [p.name for p in root.iterdir() if p.is_dir() and not p.name.startswith(".")]
     experiment_list.sort()
 if st.session_state.cfg.experiment is not None:
     if st.session_state.cfg.experiment not in experiment_list:
@@ -195,10 +195,10 @@ project_dir = root_dir / st.session_state.cfg.project
 campaign_dir = project_dir / st.session_state.cfg.campaign
 exp_dir = campaign_dir / st.session_state.cfg.experiment
 
-_, r_installed, r_status = st.session_state.datamanager.get_status(dataset=root_dir, recursive=False)
-_, p_installed, p_status = st.session_state.datamanager.get_status(dataset=project_dir, recursive=False)
-_, c_installed, c_status = st.session_state.datamanager.get_status(dataset=campaign_dir, recursive=False)
-_, e_installed, e_status = st.session_state.datamanager.get_status(dataset=exp_dir, recursive=False)
+_, r_installed, r_status = dm.get_status(dataset=root_dir, recursive=False)
+_, p_installed, p_status = dm.get_status(dataset=project_dir, recursive=False)
+_, c_installed, c_status = dm.get_status(dataset=campaign_dir, recursive=False)
+_, e_installed, e_status = dm.get_status(dataset=exp_dir, recursive=False)
 ds_installed = r_installed and p_installed and c_installed and e_installed
 
 #all dirs exists at this point in the script as checked above
@@ -221,10 +221,10 @@ else:
             clean = False
     if clean:
         with col5:
-            st.text('DataLad branch (project / campaign / experiment) is saved (clean).')
+            st.success('DataLad branch (project / campaign / experiment) is saved (clean).')
     else:
         with col5:
-            st.info('DataLad branch (project / campaign / experiment) has unsaved changes.')
+            st.warning('DataLad branch (project / campaign / experiment) has unsaved changes.')
         with col6:
             if st.button("Save DataLad Branch.", type='primary'):
                 dm.save(path=exp_dir, recursive=True)
@@ -328,7 +328,7 @@ with st.expander(label='Connection Setup', expanded=False):
                 st.stop()
 
 with st.expander(label='Repository Actions', expanded=True):
-    status = dm.get_git_sync_status(datset=exp_dir)
+    status = dm.get_git_sync_status(dataset=exp_dir)
     ok = status['ok']
     state = status['state']
     message = status['message']
@@ -351,6 +351,7 @@ with st.expander(label='Repository Actions', expanded=True):
                 recursive=True,
                 push_annex_data=False
             )
+            st.rerun()
         st.stop()
 
     if state in ['fetch_failed', 'branch_failed', 'detached_head', 'no_upstream', 'compare_failed', 'parse_failed']:
@@ -364,14 +365,16 @@ with st.expander(label='Repository Actions', expanded=True):
     if state == 'up_to_date':
         st.success("Local and remote branches are up-to-date.")
     elif state == 'ahead':
-        st.info("Local branch is ahead.")
+        st.warning("Local branch is ahead.")
         if st.button('Push local branch to remote.', type='primary'):
             dm.push_to_remotes(dataset=exp_dir, recursive=True, push_annex_data=True)
+            st.rerun()
     elif state == 'behind':
-        st.info("Local branch is behind.")
+        st.warning("Local branch is behind.")
         if st.button('Update local branch from remote.', type='primary'):
             dm.pull_from_remotes(dataset=exp_dir, recursive=True)
             dm.get_content(dataset=exp_dir, recursive=True)
+            st.rerun()
     elif state == 'diverged':
         st.warning("Local branch and remote are diverged. Feel free to sync manually.")
         col10, col11 = st.columns([5, 5])
@@ -379,6 +382,8 @@ with st.expander(label='Repository Actions', expanded=True):
             if st.button('Update local branch from remote.', type='primary'):
                 dm.pull_from_remotes(dataset=exp_dir, recursive=True)
                 dm.get_content(dataset=exp_dir, recursive=True)
+                st.rerun()
         with col11:
             if st.button('Push local branch to remote.', type='primary'):
                 dm.push_to_remotes(dataset=exp_dir, recursive=True, push_annex_data=True)
+                st.rerun()
