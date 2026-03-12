@@ -328,4 +328,57 @@ with st.expander(label='Connection Setup', expanded=False):
                 st.stop()
 
 with st.expander(label='Repository Actions', expanded=True):
-    pass
+    status = dm.get_git_sync_status(datset=exp_dir)
+    ok = status['ok']
+    state = status['state']
+    message = status['message']
+
+    if state == "not_dataset":
+        st.info(message)
+        st.error("This should never happen at this point in the script.")
+        st.stop()
+
+    if state == "no_remote":
+        st.info(message)
+        st.text("Experiment does not yet have a remote repository. When creating a remote repository for the current "
+                "experiment, repositories for all other projects / campaigns / experiments will be created or updated. "
+                "Annex data will not be pushed at this point.")
+        if st.button("Create Remote Repository", type='primary'):
+            dm.publish_gin_sibling(
+                sibling_name='gin',
+                repo_name=st.session_state.cfg.user_name,
+                dataset=root_dir,
+                recursive=True,
+                push_annex_data=False
+            )
+        st.stop()
+
+    if state in ['fetch_failed', 'branch_failed', 'detached_head', 'no_upstream', 'compare_failed', 'parse_failed']:
+        st.error(message)
+        st.text('A solution to this problem is outside the abilities of this script.')
+        st.stop()
+
+    with st.expander(label='Detailed Status', expanded=False):
+        st.text(json.dumps(status, indent=2, sort_keys=True, default=str))
+
+    if state == 'up_to_date':
+        st.success("Local and remote branches are up-to-date.")
+    elif state == 'ahead':
+        st.info("Local branch is ahead.")
+        if st.button('Push local branch to remote.', type='primary'):
+            dm.push_to_remotes(dataset=exp_dir, recursive=True, push_annex_data=True)
+    elif state == 'behind':
+        st.info("Local branch is behind.")
+        if st.button('Update local branch from remote.', type='primary'):
+            dm.pull_from_remotes(dataset=exp_dir, recursive=True)
+            dm.get_content(dataset=exp_dir, recursive=True)
+    elif state == 'diverged':
+        st.warning("Local branch and remote are diverged. Feel free to sync manually.")
+        col10, col11 = st.columns([5, 5])
+        with col10:
+            if st.button('Update local branch from remote.', type='primary'):
+                dm.pull_from_remotes(dataset=exp_dir, recursive=True)
+                dm.get_content(dataset=exp_dir, recursive=True)
+        with col11:
+            if st.button('Push local branch to remote.', type='primary'):
+                dm.push_to_remotes(dataset=exp_dir, recursive=True, push_annex_data=True)
