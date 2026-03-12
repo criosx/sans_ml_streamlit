@@ -333,6 +333,9 @@ with st.expander(label='Repository Actions', expanded=True):
     state = status['state']
     message = status['message']
 
+    with st.expander(label='Detailed Status', expanded=False):
+        st.text(json.dumps(status, indent=2, sort_keys=True, default=str))
+
     if state == "not_dataset":
         st.info(message)
         st.error("This should never happen at this point in the script.")
@@ -341,26 +344,50 @@ with st.expander(label='Repository Actions', expanded=True):
     if state == "no_remote":
         st.info(message)
         st.text("Experiment does not yet have a remote repository. When creating a remote repository for the current "
-                "experiment, repositories for all other projects / campaigns / experiments will be created or updated. "
-                "Annex data will not be pushed at this point.")
+                "experiment, repositories for all other projects / campaigns / experiments will be created or updated.")
         if st.button("Create Remote Repository", type='primary'):
             dm.publish_gin_sibling(
                 sibling_name='gin',
                 repo_name=st.session_state.cfg.user_name,
                 dataset=root_dir,
                 recursive=True,
-                push_annex_data=False
+                push_annex_data=True
             )
             st.rerun()
         st.stop()
 
-    if state in ['fetch_failed', 'branch_failed', 'detached_head', 'no_upstream', 'compare_failed', 'parse_failed']:
-        st.error(message)
+    if state in ['branch_failed', 'detached_head', 'no_upstream', 'compare_failed', 'parse_failed']:
+        st.error(state + ': ' + message)
         st.text('A solution to this problem is outside the abilities of this script.')
         st.stop()
 
-    with st.expander(label='Detailed Status', expanded=False):
-        st.text(json.dumps(status, indent=2, sort_keys=True, default=str))
+    if state == 'fetch_failed':
+        status_parent = dm.get_git_sync_status(dataset=exp_dir, from_parent=True)
+
+        st.error('Status from Experiment:' + state + ': ' + message)
+        st.info('Status from parent folder: ' + status_parent['state'] + ': ' + status_parent['message'])
+
+        if status_parent['ok'] and status_parent['state'] != 'no_remote':
+            st.text('The parent dataset repository appears to be o.k. If the remote repository for the experiment '
+                    'dataset has been deleted, you can try to remove and republish the experiment dataset only.')
+            if st.button('Remove and republish stale remote siblings for entire Datalad tree', type='primary'):
+                dm.remove_siblings(dataset=root_dir, recursive=True)
+                dm.publish_gin_sibling(
+                    sibling_name='gin',
+                    repo_name=st.session_state.cfg.user_name,
+                    dataset=exp_dir,
+                    recursive=False,
+                    push_annex_data=True
+                )
+                st.rerun()
+        else:
+            st.text("The remote parent dataset repository appears to be not o.k., as well. If the entire remote "
+                    "repository tree has been deleted, you can try to remove all all stale siblings and republish "
+                    "the entire tree again.")
+            if st.button('Remove and republish stale remote siblings for the current Experiment only.',
+                         type='primary'):
+                dm.remove_sibling(dataset=exp_dir, recursive=False)
+                st.rerun()
 
     if state == 'up_to_date':
         st.success("Local and remote branches are up-to-date.")
