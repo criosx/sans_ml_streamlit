@@ -364,14 +364,14 @@ with st.expander(label='Repository Actions', expanded=True):
     if state == 'fetch_failed':
         status_parent = dm.get_git_sync_status(dataset=exp_dir, from_parent=True)
 
-        st.error('Status from Experiment:' + state + ': ' + message)
-        st.info('Status from parent folder: ' + status_parent['state'] + ': ' + status_parent['message'])
+        st.error('Status from Experiment Dataset: ' + state + ': ' + message)
+        st.info('Status from parent Category Dataset: ' + status_parent['state'] + ': ' + status_parent['message'])
 
         if status_parent['ok'] and status_parent['state'] != 'no_remote':
             st.text('The parent dataset repository appears to be o.k. If the remote repository for the experiment '
                     'dataset has been deleted, you can try to remove and republish the experiment dataset only.')
             if st.button('Remove and republish stale remote siblings for entire Datalad tree', type='primary'):
-                dm.remove_siblings(dataset=root_dir, recursive=True)
+                dm.remove_siblings(dataset=exp_dir, recursive=False)
                 dm.publish_gin_sibling(
                     sibling_name='gin',
                     repo_name=st.session_state.cfg.user_name,
@@ -386,7 +386,7 @@ with st.expander(label='Repository Actions', expanded=True):
                     "the entire tree again.")
             if st.button('Remove and republish stale remote siblings for the current Experiment only.',
                          type='primary'):
-                dm.remove_sibling(dataset=exp_dir, recursive=False)
+                dm.remove_siblings(dataset=root_dir, recursive=True)
                 st.rerun()
 
     if state == 'up_to_date':
