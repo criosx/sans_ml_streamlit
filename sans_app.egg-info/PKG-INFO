@@ -1,0 +1,14 @@
+Metadata-Version: 2.4
+Name: sans_app
+Version: 0.1
+Summary: SANS data visualization and analysis
+Home-page: 
+Author: Frank Heinrich
+Author-email: fheinrich@cmu.edu
+License: MIT open source
+License-File: LICENSE
+Dynamic: author
+Dynamic: author-email
+Dynamic: license
+Dynamic: license-file
+Dynamic: summary

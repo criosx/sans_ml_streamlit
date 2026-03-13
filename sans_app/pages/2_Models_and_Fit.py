@@ -1,21 +1,17 @@
 import os
-from PIL import Image
-import pandas
-from scattertools.support import molstat
-from scattertools.support import api_sasview
 import shutil
 import streamlit as st
-import subprocess
+from sans_app.support import app_functions
+import tempfile
 
-import sys
-sys.path.append(st.session_state['app_functions_dir'])
-import app_functions
+if not st.session_state["data_folders_ready"]:
+    st.info("Files and Folders not set up. Please visit the File System tab.")
+    st.stop()
 
 user_sans_model_dir = st.session_state['user_sans_model_dir']
 user_sans_file_dir = st.session_state['user_sans_file_dir']
 user_sans_fit_dir = st.session_state['user_sans_fit_dir']
-user_sans_temp_dir = os.path.join(st.session_state['streamlit_dir'], 'temp')
-
+user_sans_temp_dir = st.session_state['user_sans_temp_dir']
 
 # ---- Functionality --------
 def add_par(parname, model_name, fitobj):
@@ -96,7 +92,14 @@ if model_name:
     df_pars = df_pars.transpose()
 
     col1_1.text('Edit fit ranges')
-    parameters_edited = col1_1.experimental_data_editor(df_pars)
+    parameters_edited = col1_1.data_editor(
+        df_pars,
+        disabled=["_index"],
+        column_config={
+            'lowerlimit': "lower limit",
+            'upperlimit': "upper limit"
+        }
+    )
     col1_1.button('Apply', on_click=update_par, args=[parameters_edited, model_name, model_fitobj],
                   use_container_width=False)
 
