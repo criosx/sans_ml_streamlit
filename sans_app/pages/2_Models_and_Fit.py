@@ -2,6 +2,7 @@ import os
 import shutil
 import streamlit as st
 from sans_app.support import app_functions
+import tempfile
 
 if not st.session_state["data_folders_ready"]:
     st.info("Files and Folders not set up. Please visit the File System tab.")
@@ -10,8 +11,7 @@ if not st.session_state["data_folders_ready"]:
 user_sans_model_dir = st.session_state['user_sans_model_dir']
 user_sans_file_dir = st.session_state['user_sans_file_dir']
 user_sans_fit_dir = st.session_state['user_sans_fit_dir']
-user_sans_temp_dir = os.path.join(st.session_state['streamlit_dir'], 'temp')
-
+user_sans_temp_dir = st.session_state['user_sans_temp_dir']
 
 # ---- Functionality --------
 def add_par(parname, model_name, fitobj):

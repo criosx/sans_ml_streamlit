@@ -12,6 +12,7 @@ from scattertools.support import api_sasview
 import shutil
 import streamlit as st
 import subprocess
+import tempfile
 from typing import Optional, Dict, Any
 
 from sans_app.support import configuration
@@ -61,9 +62,9 @@ def load_SANS_data(uploaded_file, file_save_dir):
         ds, tb_output, file_name = load_sans_file(uploaded_file.name, file_save_dir)
         if file_name is None:
             uploaded_file = None
-    except IOError:
+    except (IOError, TypeError) as exc:
         ds = None
-        tb_output = ["Invalid SANS data file."]
+        tb_output = "Invalid SANS data file. " + str(exc)
         uploaded_file = None
     return ds, tb_output, uploaded_file
 
@@ -84,9 +85,9 @@ def load_sans_file(file_name, file_dir):
              }
         )
         tb_output = ""
-    except IOError:
+    except (IOError, TypeError) as exc:
         ds = None
-        tb_output = ["Invalid SANS data file."]
+        tb_output = "Invalid SANS data file. " + str(exc)
         file_name = None
 
     return ds, tb_output, file_name
@@ -103,20 +104,21 @@ def load_sans_files(filelist, file_dir):
 
 
 def monitor_jobs(job_dir):
-    status_path = os.path.join(job_dir, 'status.json')
+    job_dir = Path(job_dir)
+    status_path = job_dir / "status.json"
 
-    if not os.path.isfile(status_path):
-        status = 'idle'
+    if not status_path.is_file():
+        status = "idle"
     else:
         status_df = pandas.read_json(status_path)
-        status = status_df['status'].values[0]
+        status = status_df["status"].values[0]
 
-    # last modification to top experimental optimization folder
-    list_of_files = glob.glob(job_dir)
-    latest_file = max(list_of_files, key=os.path.getctime)
-    jobtime = os.path.getctime(latest_file)
+    latest_mtime = max(
+        (p.stat().st_mtime for p in job_dir.rglob("*") if p.is_file()),
+        default=job_dir.stat().st_mtime,
+    )
 
-    return jobtime, status
+    return latest_mtime, status
 
 
 def run_fit(fitdir=None, runfile=None, datafile_names=None, datafile_names_uploaded=None, file_dir=None, model_dir=None,
@@ -251,8 +253,7 @@ def setup_app_dirs(
     user_sans_fit_dir.mkdir(parents=True, exist_ok=True)
     user_sans_opt_dir = exp_root / 'SANS_experimental_optimization'
     user_sans_opt_dir.mkdir(parents=True, exist_ok=True)
-    temp_dir = exp_root / 'temp'
-    temp_dir.mkdir(parents=True, exist_ok=True)
+
 
     # save paths to persistent session state
     st.session_state['user_sans_config_dir'] = user_sans_config_dir
@@ -261,6 +262,11 @@ def setup_app_dirs(
     st.session_state['user_sans_fit_dir'] = user_sans_fit_dir
     st.session_state['user_sans_opt_dir'] = user_sans_opt_dir
     st.session_state['user_ml_model_dir'] = user_ml_model_dir
+    if 'user_sans_temp_dir' not in st.session_state:
+        st.session_state['user_sans_temp_dir'] = tempfile.mkdtemp()
+    if 'example_sans_config_dir' not in st.session_state:
+        st.session_state['example_sans_config_dir'] = (
+                Path(__file__).parent.parent / 'example_data' / 'example_SANS_configurations')
 
     if copy_examples:
         # Copy example SANS models into user model directory if not already present.

@@ -15,7 +15,6 @@ if not st.session_state["data_folders_ready"]:
 if not os.path.isdir('temp'):
     os.makedirs('temp')
 
-streamlit_dir = st.session_state['streamlit_dir']
 user_ml_model_dir = st.session_state['user_ml_model_dir']
 user_sans_file_dir = st.session_state['user_sans_file_dir']
 default_model_dir = os.path.join(str(Path(__file__).parent.parent.parent), 'ml_models')
@@ -48,17 +47,18 @@ def auto_background(Q, Iq, dI, dQ, qmin, qmax):
 @st.cache_data
 def load_ml_model(path, model):
     dirname = os.path.join(path, model)
+    tb_output = ''
     try:
         sans_models = fnLoadObject(os.path.join(dirname, 'sans_models.dat'))
         par_names = fnLoadObject(os.path.join(dirname, 'par_names.dat'))
         # Load model for prediction. Compile = False avoids supplying the custom loss function.
         ml_model = tf.keras.models.load_model(dirname, compile=False)
-    except IOError:
-        tb_output = ['Could not load ML model']
+    except (IOError, ValueError) as e:
+        tb_output = 'Could not load ML model. ' + str(e)
         ml_model = None
         sans_models = None
         par_names = None
-    return sans_models, par_names, ml_model
+    return sans_models, par_names, ml_model, tb_output
 
 
 @st.cache_data
@@ -74,7 +74,7 @@ def load_SANS_data(uploaded_file):
         tb_output = " "
     except IOError:
         Q = Iq = dI = dQ = None
-        tb_output = ["Invalid SANS data file."]
+        tb_output = "Invalid SANS data file."
         uploaded_file = None
     return Q, Iq, dI, dQ, tb_output, uploaded_file
 
@@ -203,7 +203,10 @@ ml_model_name = col2.selectbox("ML model", combined_model_list)
 # identify in which folder the selected model resides
 if ml_model_name in model_list2:
     model_path = model_path2
-sans_models, par_names, ml_model = load_ml_model(model_path, ml_model_name)
+sans_models, par_names, ml_model, tb_output = load_ml_model(model_path, ml_model_name)
+if tb_output != '':
+    st.error(tb_output)
+    st.stop()
 
 if uploaded_file:
     tb_output = predict(Q, Iq, dI, dQ, background, solvent_sld, ml_model_name, qmin, qmax)

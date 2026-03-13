@@ -1,11 +1,13 @@
 import numpy
 import os
 import pandas
+from pathlib import Path
 import plotly.graph_objects as go
 from scattertools.support import api_sasview
 import shutil
 import streamlit as st
 from sans_app.support import app_functions
+import tempfile
 
 if not st.session_state["data_folders_ready"]:
     st.info("Files and Folders not set up. Please visit the File System tab.")
@@ -15,7 +17,7 @@ user_sans_model_dir = st.session_state['user_sans_model_dir']
 user_sans_file_dir = st.session_state['user_sans_file_dir']
 user_sans_fit_dir = st.session_state['user_sans_fit_dir']
 user_sans_config_dir = st.session_state['user_sans_config_dir']
-user_sans_temp_dir = os.path.join(st.session_state['streamlit_dir'], 'temp')
+user_sans_temp_dir = st.session_state['user_sans_temp_dir']
 example_sans_config_dir = st.session_state['example_sans_config_dir']
 
 
@@ -39,6 +41,7 @@ def column_load_file(column_number=None, col=None, file_list=None):
             ds, tb_output, file_name = app_functions.load_sans_file(file_name, user_sans_file_dir)
             if tb_output != '':
                 col.error(tb_output)
+                st.stop()
     return ds, file_name
 
 
@@ -283,7 +286,7 @@ fig.update_xaxes(type="log", ticks='inside', showgrid=True, showline=True, linew
 fig.update_yaxes(type="log", ticks='inside', showgrid=True, showline=True, linewidth=2, mirror=True,
                  title_text='Intensity (1/cm)')
 fig['data'][0]['showlegend'] = True
-st.plotly_chart(fig, user_container_width=True)
+st.plotly_chart(fig, width='stretch')
 
 fig = go.Figure()
 if sans_graphs1:
@@ -299,7 +302,7 @@ fig.update_xaxes(type="log", ticks='inside', showgrid=True, showline=True, linew
 fig.update_yaxes(type="log", ticks='inside', showgrid=True, showline=True, linewidth=2, mirror=True,
                  title_text='dI / I')
 fig['data'][0]['showlegend'] = True
-st.plotly_chart(fig, user_container_width=True)
+st.plotly_chart(fig, width='stretch')
 
 fig = go.Figure()
 if sans_graphs1:
@@ -315,4 +318,4 @@ fig.update_xaxes(type="log", ticks='inside', showgrid=True, showline=True, linew
 fig.update_yaxes(type="log", ticks='inside', showgrid=True, showline=True, linewidth=2, mirror=True,
                  title_text='dQ / Q')
 fig['data'][0]['showlegend'] = True
-st.plotly_chart(fig, user_container_width=True)
+st.plotly_chart(fig, width='stretch')
