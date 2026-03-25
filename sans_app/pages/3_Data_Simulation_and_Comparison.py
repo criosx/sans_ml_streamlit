@@ -13,13 +13,11 @@ if not st.session_state["data_folders_ready"]:
     st.info("Files and Folders not set up. Please visit the File System tab.")
     st.stop()
 
-user_sans_model_dir = st.session_state['user_sans_model_dir']
-user_sans_file_dir = st.session_state['user_sans_file_dir']
-user_sans_fit_dir = st.session_state['user_sans_fit_dir']
-user_sans_config_dir = st.session_state['user_sans_config_dir']
-user_sans_temp_dir = st.session_state['user_sans_temp_dir']
-example_sans_config_dir = st.session_state['example_sans_config_dir']
-
+user_sans_model_dir = str(st.session_state['user_sans_model_dir'])
+user_sans_file_dir = str(st.session_state['user_sans_file_dir'])
+user_sans_fit_dir = str(st.session_state['user_sans_fit_dir'])
+user_sans_config_dir = str(st.session_state['user_sans_config_dir'])
+user_sans_temp_dir = str(st.session_state['user_sans_temp_dir'])
 
 # ------------ Functionality -----------
 def column_load_file(column_number=None, col=None, file_list=None):
@@ -155,12 +153,7 @@ def load_config(file):
 def remove_configuration(name):
     if os.path.isfile(os.path.join(user_sans_config_dir, name)):
         os.remove(os.path.join(user_sans_config_dir, name))
-        if os.path.isfile(os.path.join(example_sans_config_dir, name)):
-            shutil.copyfile(os.path.join(example_sans_config_dir, name), os.path.join(user_sans_config_dir, name))
-            st.info('Replaced configuration ' + name + ' with default.')
-        else:
-            st.info('Removed configuration ' + name + ' .')
-
+        st.info('Removed configuration ' + name + ' .')
     remove_key_exp_data_frame_edit()
 
 
@@ -192,7 +185,7 @@ config_list = sorted([element for element in config_list if '.json' in element])
 if 'sans_config_selectbox' in st.session_state:
     if st.session_state.sans_config_selectbox not in config_list:
         # it got deleted via the remove button
-        st.session_state.sans_config_selectbox = config_list[0]
+        st.session_state.sans_config_selectbox = None
 
 if 'sans_config_modifier' in st.session_state and 'sans_config_selectbox' in st.session_state:
     config_name = create_non_default_configuration(st.session_state.sans_config_selectbox,
@@ -218,6 +211,11 @@ with st.expander('Edit'):
     col1_a, col1_b, = st.columns([1.2, 1])
     config_name = col1_a.selectbox("Select configuration", config_list, key='sans_config_selectbox',
                                    on_change=remove_key_exp_data_frame_edit)
+
+    if config_name is None:
+        st.info('Please upload and/or select a configuration. You can also populate the configuration folder with '
+                'examples via the File System Tab.')
+        st.stop()
 
     btn_remove = col1_a.button("Delete", on_click=remove_configuration, args=[config_name])
     name_modifier = col1_b.text_input('Create or switch to copy with extension', '', key='sans_config_modifier')

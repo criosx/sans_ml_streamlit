@@ -16,7 +16,7 @@ st.session_state["user_sans_temp_dir"] = tempfile.mkdtemp()
 if st.session_state["data_folders_ready"]:
     df_folders = pandas.DataFrame({
         'User home': [str(st.session_state['user_root_dir'])],
-        'Data home': [str(st.session_state['dataroot_dir'])],
+        'Data home': [str(st.session_state.cfg.dm_root)],
         'SANS models': [str(st.session_state['user_sans_model_dir'])],
         'SANS data': [str(st.session_state['user_sans_file_dir'])],
         'SANS instrument configurations': [str(st.session_state['user_sans_config_dir'])],

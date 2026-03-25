@@ -8,6 +8,10 @@ from sasmodels.data import load_data
 import tensorflow as tf
 import time
 
+
+st.info('Tab currently under development.')
+st.stop()
+
 if not st.session_state["data_folders_ready"]:
     st.info("Files and Folders not set up. Please visit the File System tab.")
     st.stop()
@@ -15,8 +19,8 @@ if not st.session_state["data_folders_ready"]:
 if not os.path.isdir('temp'):
     os.makedirs('temp')
 
-user_ml_model_dir = st.session_state['user_ml_model_dir']
-user_sans_file_dir = st.session_state['user_sans_file_dir']
+user_ml_model_dir = str(st.session_state['user_ml_model_dir'])
+user_sans_file_dir = str(st.session_state['user_sans_file_dir'])
 default_model_dir = os.path.join(str(Path(__file__).parent.parent.parent), 'ml_models')
 tb_output = ['No SANS File Loaded']
 
