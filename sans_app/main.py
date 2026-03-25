@@ -1,14 +1,21 @@
-
 import pandas
+from pathlib import Path
 import streamlit as st
+import tempfile
 
-from sans_app.support import app_functions
+from sans_app.support import configuration
 
-app_functions.setup_app_dirs(create_dirs=False, copy_examples=False, init_datalad=False)
+
+if "data_folders_ready" not in st.session_state:
+    st.session_state["data_folders_ready"] = None
+if 'user_root_dir' not in st.session_state:
+    st.session_state.user_root_dir = Path.home() / "app_data"
+st.session_state.cfg = configuration.load_persistent_cfg()
+st.session_state["user_sans_temp_dir"] = tempfile.mkdtemp()
 
 if st.session_state["data_folders_ready"]:
     df_folders = pandas.DataFrame({
-        'App home': [str(st.session_state['app_dir'])],
+        'User home': [str(st.session_state['user_root_dir'])],
         'Data home': [str(st.session_state['dataroot_dir'])],
         'SANS models': [str(st.session_state['user_sans_model_dir'])],
         'SANS data': [str(st.session_state['user_sans_file_dir'])],
@@ -19,7 +26,7 @@ if st.session_state["data_folders_ready"]:
     })
 else:
     df_folders = pandas.DataFrame({
-        'App home': [str(st.session_state['app_dir'])],
+        'User home': [str(st.session_state['user_root_dir'])],
     })
 
 df_folders = df_folders.T

@@ -1,7 +1,10 @@
+from __future__ import annotations
+
+from datetime import datetime
 import json
 import os
 
-from dataclasses import asdict, dataclass, fields
+from dataclasses import asdict, dataclass, is_dataclass, fields
 from pathlib import Path
 from typing import Optional
 
@@ -26,6 +29,9 @@ class DataConfig:
     project: Optional[str] = None
     campaign: Optional[str] = None
     experiment: Optional[str] = None
+
+    # Datamanager root directory
+    dm_root: Optional[str] = None
 
     # DataLad behavior
     use_datalad: bool = False
@@ -71,13 +77,27 @@ def load_persistent_cfg() -> DataConfig:
     filtered = {k: v for k, v in raw.items() if k in valid_keys}
     return DataConfig(**filtered)
 
+def save_persistent_cfg(data: dict | DataConfig) -> None:
 
-def save_persistent_cfg(data: DataConfig | dict) -> None:
+    def _make_json_safe(obj):
+        # Ensure all values are JSON-safe
+        if isinstance(obj, Path):
+            return str(obj)
+        if isinstance(obj, datetime):
+            return obj.isoformat()
+        if isinstance(obj, dict):
+            return {k: _make_json_safe(v) for k, v in obj.items()}
+        if isinstance(obj, list):
+            return [_make_json_safe(v) for v in obj]
+        return obj
+
     cfg_path = default_config_path()
     cfg_path.parent.mkdir(parents=True, exist_ok=True)
 
-    #payload = data
-    #if isinstance(data, DataConfig):
-    #    payload = {f.name: getattr(data, f.name) for f in fields(DataConfig)}
+    # Normalize input
+    if is_dataclass(data):
+        data = asdict(data)
 
-    cfg_path.write_text(json.dumps(asdict(data), indent=2))
+    safe_data = _make_json_safe(data)
+
+    cfg_path.write_text(json.dumps(safe_data, indent=2))

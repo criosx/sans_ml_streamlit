@@ -6,7 +6,7 @@
       <sourceFolder url="file://$MODULE_DIR$/sans_app/example_data/example_SANS_files" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/sans_app/example_data/example_SANS_models" isTestSource="false" />
     </content>
-    <orderEntry type="jdk" jdkName="$USER_HOME$/miniforge3/envs/datam" jdkType="Python SDK" />
+    <orderEntry type="jdk" jdkName="$USER_HOME$/miniforge3/envs/sans_ml" jdkType="Python SDK" />
     <orderEntry type="sourceFolder" forTests="false" />
   </component>
   <component name="PyDocumentationSettings">
