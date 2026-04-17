@@ -26,11 +26,9 @@ def get_info_from_runfile(model_name, model_dir, file_dir, fit_dir):
     datafile_names = [os.path.basename(file) for file in datafile_names]
     api_sasview.write_data_filenames_to_runfile(runfile=runfile, filelist=datafile_names)
 
-    # check if data files are in user folder, if not then create dummy files
+    # check data files
     datafile_names_user = [os.path.join(file_dir, os.path.basename(file)) for file in datafile_names]
-
     molstat.prepare_fit_directory(fitdir=fit_dir, runfile=runfile, datafile_names=datafile_names_user)
-
     # if datafiles exist in user filedir, use those; otherwise create dummy files
     for filename in datafile_names_user:
         if os.path.isfile(filename):
@@ -48,7 +46,7 @@ def get_info_from_runfile(model_name, model_dir, file_dir, fit_dir):
         problem=None,
     )
     df_pars = pandas.DataFrame.from_dict(fitobj.fnLoadParameters())
-    li_allpars = list(fitobj.Interactor.problem.model_parameters().keys())
+    li_allpars = fitobj.fnGetAllParameterNames(model=0)
 
     return df_pars, li_allpars, datafile_names, fitobj
 
