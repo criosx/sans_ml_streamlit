@@ -1,53 +1,70 @@
-import glob
-import os
 import pandas
-import plotly.graph_objects as go
-from scattertools.support import api_sasview
-import shutil
+from pathlib import Path
 import streamlit as st
-import time
+import uuid
+
 from sans_app.support import app_functions
+from sans_app.support import configuration
+
+from scattertools.support import api_sasview
+from pse.streamlit_components import check_session_state, clear_project_data_dialog, monitor, run_control
 
 if not st.session_state["data_folders_ready"]:
     st.info("Files and Folders not set up. Please visit the File System tab.")
     st.stop()
 
+# the optimization directory, that will contain all PSE-related files
 user_sans_opt_dir = st.session_state['user_sans_opt_dir']
+# Streamlit components from the PSE module expect this canonical directory
+st.session_state['pse_dir'] = st.session_state['user_sans_opt_dir']
+# the model directory used by other pages of this app, as well
 user_sans_model_dir = st.session_state['user_sans_model_dir']
+# the dirctory containing all the SANS scattering data files
 user_sans_file_dir = st.session_state['user_sans_file_dir']
+# the directory that contains the current fit (runfile) that will be used for the optimization
 user_sans_fit_dir = st.session_state['user_sans_fit_dir']
+# the directory that contains the configuration files from which can be chosen
 user_sans_config_dir = st.session_state['user_sans_config_dir']
+# the temp directory for various purposes
 user_sans_temp_dir = st.session_state['user_sans_temp_dir']
 
+# some analysis of the present files
+file_list = sorted(p.name for p in Path(user_sans_file_dir).iterdir()
+                   if p.is_file() and not p.name.startswith('.'))
+
+model_list = sorted(p.name for p in Path(user_sans_model_dir).iterdir()
+                   if p.is_file() and not p.name.startswith('.'))
+
+config_list = sorted(p.name for p in Path(user_sans_config_dir).iterdir()
+                   if p.is_file() and not p.name.startswith('.'))
+
 # ------------ Functionality -----------
-def adjust_consecutive_configurations(reference_config):
-    if len(st.session_state['df_opt_config_updated']) > 1:
-        for j in range(1, len(st.session_state['df_opt_config_updated'])):
+
+def adjust_consecutive_configurations():
+    if len(st.session_state['df_opt_config']) > 1:
+        for j in range(1, len(st.session_state['df_opt_config'])):
             change_flag = False
             # shorthand handles
-            df0 = st.session_state['df_opt_config_updated'][0]
-            dfj = st.session_state['df_opt_config_updated'][j]
+            df0 = st.session_state['df_opt_config_edited'][0]
+            dfj = st.session_state['df_opt_config_edited'][j]
             # modify successive configurations if any setting is shared with first configuration
             for par in df0.index.values:
-                # delete a shared setting from consecutive data frames
-                if df0.loc[df0.index == par, 'shared'].iat[0]:
-                    df_temp = dfj.loc[dfj.index != par]
-                    if len(df_temp.index) != len(dfj.index):
-                        dfj = df_temp
+                # copy a shared setting from the first to consecutive dataframes
+                if par in dfj.index and bool(df0.loc[par, "shared"]) and not bool(dfj.loc[par, "shared"]):
+                    dfj.loc[par, :] = df0.loc[par, :]
+                    change_flag = True
+                if par in dfj.index and bool(df0.loc[par, "shared"]) and bool(dfj.loc[par, "shared"]):
+                    if not dfj.loc[par, :].equals(df0.loc[par, :]):
+                        dfj.loc[par, :] = df0.loc[par, :]
                         change_flag = True
-                # add unshared settings back
-                elif par not in dfj.index.values:
-                    if par in st.session_state['df_opt_config_default'][j].index.values:
-                        dfa = st.session_state['df_opt_config_default'][j]
-                        dfj = pandas.concat([dfj, dfa.loc[dfa.index == par]])
-                        dfj = dfj.sort_index()
-                        # dfj.reset_index(inplace=True)
-                        change_flag = True
+                if par in dfj.index and not bool(df0.loc[par, "shared"]) and bool(dfj.loc[par, "shared"]):
+                    dfj.loc[par, :] = st.session_state['df_opt_config_original'][j].loc[par, :]
+                    change_flag = True
             if change_flag:
-                st.session_state['df_opt_config_associated'][j] = dfj.copy(deep=True)
                 # change key of data editor associated with that particular data frame
-                st.session_state['df_opt_config_key'] = str(time.time())
-
+                st.session_state['df_opt_config_key'][j] = str(uuid.uuid4())
+                st.session_state['df_opt_config'][j] = dfj
+                st.session_state['df_opt_config_edited'][j] = dfj
 
 def summarize_optimization_parameter_settings():
     li_summary = []
@@ -86,9 +103,9 @@ def summarize_optimization_parameter_settings():
                            lower_opt, upper_opt, step_opt])
 
     # add configuration settings
-    df0 = st.session_state['df_opt_config_updated'][0]
-    num_config = len(st.session_state['df_opt_config_updated'])
-    for i, config in enumerate(st.session_state['df_opt_config_updated']):
+    df0 = st.session_state['df_opt_config_edited'][0]
+    num_config = len(st.session_state['df_opt_config_edited'])
+    for i, config in enumerate(st.session_state['df_opt_config_edited']):
         for index, row in config.iterrows():
             parname = index
             if parname in df0.index.values and (num_config == 1 or df0.loc[index, 'shared']):
@@ -112,6 +129,14 @@ def summarize_optimization_parameter_settings():
 
 
 def update_df_config(config_list_select):
+    """
+    Loads the configurations provided by the filenames in config_list_select into a list of dataframes, if it is a new
+    selection. It then adds columns required for the optimization. For a new set of configurations, the widget keys
+    of the instrument configuration parameters widget will be updated.
+
+    :param config_list_select: list of configuration filenames
+    :return:
+    """
 
     # function argument homogeineization
     if config_list_select is not None:
@@ -128,8 +153,9 @@ def update_df_config(config_list_select):
         st.session_state['opt_config_list_select'] = config_list_select
 
     df_config = []
+
     for config_name in config_list_select:
-        df_config.append(pandas.read_json(os.path.join(config_path, config_name), orient='record'))
+        df_config.append(pandas.read_json(Path(user_sans_config_dir) / config_name, orient='record'))
 
     for i, config in enumerate(df_config):
         if len(df_config) > 1:
@@ -141,48 +167,28 @@ def update_df_config(config_list_select):
         df_config[i] = config.sort_values('setting')
         df_config[i].set_index('setting', inplace=True)
 
-    dfcopy1 = []
-    dfcopy2 = []
-    for i, element in enumerate(df_config):
-        dfcopy1.append(element.copy(deep=True))
-        dfcopy2.append(element.copy(deep=True))
-    st.session_state['df_opt_config_default'] = dfcopy1
-    st.session_state['df_opt_config_updated'] = dfcopy2
-    st.session_state['df_opt_config_associated'] = []
-    for _ in range(len(df_config)):
-        st.session_state['df_opt_config_associated'].append(None)
+    # will store the edited configuration dataframe from the widget
+    df_config_edited=[]
+    # a saved copy of the original values for when config parameters are unshared between configurations
+    df_config_original=[]
+    for i, _ in enumerate(config_list_select):
+        df_config_edited.append(df_config[i].copy(deep=True))
+        df_config_original.append(df_config[i].copy(deep=True))
 
+    st.session_state['df_opt_config'] = df_config
+    st.session_state['df_opt_config_edited'] = df_config_edited
+    st.session_state['df_opt_config_original'] = df_config_original
     st.session_state['df_opt_config_key'] = []
     for _ in range(len(df_config)):
-        st.session_state['df_opt_config_key'].append(str(time.time()))
-
+        st.session_state['df_opt_config_key'].append(str(uuid.uuid4()))
 
 # ------------  GUI -------------------
-file_path = user_sans_file_dir
-file_list = os.listdir(file_path)
-file_list = sorted(element for element in file_list if element[0] != '.')
-
-model_path = user_sans_model_dir
-model_list = os.listdir(model_path)
-model_list = sorted([element for element in model_list if '.py' in element])
-
-configfile_names = None
-config_path = user_sans_config_dir
-config_list = os.listdir(config_path)
-config_list = sorted([element for element in config_list if '.json' in element])
-
+check_session_state()
 st.write("""
 # Job Monitor
 """)
-
 with st.expander('Monitor'):
-    jobtime, status = app_functions.monitor_jobs(user_sans_opt_dir)
-    if status == 'idle':
-        st.info('No active job.')
-    if status == 'running':
-        st.info('Job in progress. Last update at ', time.localtime(jobtime))
-    if status == 'finished':
-        st.info('Job finished at ', time.localtime(jobtime))
+    monitor()
 
 st.write("""
 # Setup New Optimization
@@ -194,28 +200,33 @@ with st.expander('Setup'):
     """)
     model_name = st.selectbox("Select from user directory", model_list, key='opt_sans_model_selectbox')
 
-    df_pars = None
     if model_name is not None:
         df_pars, li_all_pars, datafile_names, model_fitobj = \
             app_functions.get_info_from_runfile(model_name, user_sans_model_dir, user_sans_file_dir, user_sans_fit_dir)
         df_pars = df_pars.drop(index=['number', 'relval', 'variable', 'error'])
         df_pars = df_pars.transpose()
+    else:
+        st.info("Please select a SANS model.")
+        st.stop()
 
     st.write("""
     ## Instrument Configurations
     """)
     config_list_select = st.multiselect(
         "Select from user directory",
-        config_list,
-        key='opt_config_selectbox',
+        config_list
     )
+    if not config_list_select:
+        st.info("Please select an instrument configuration.")
+        st.stop()
+
+    # load and process configuration files
     update_df_config(config_list_select)
 
     st.write("""
     ## Parameters
     ### Model Fit
     """)
-
     df_pars['relative'] = True
     df_pars['lower_opt'] = 0.0
     df_pars['upper_opt'] = 1.0
@@ -224,7 +235,6 @@ with st.expander('Setup'):
     df_pars['step_opt'] = 1.0
     parameters_edited = st.data_editor(
         df_pars,
-        key='opt_pars',
         disabled=["_index"],
         column_order=["type", "value", "lowerlimit", "upperlimit", "relative", "optimize", "lower_opt", "upper_opt",
                       "step_opt"],
@@ -248,52 +258,40 @@ with st.expander('Setup'):
     st.write("""
     ### Instrument Configurations
     """)
-    if config_list_select:
-        tablist = st.tabs(config_list_select)
-        first_init_marker = False
-        for i, config in enumerate(st.session_state['df_opt_config_default']):
-            with tablist[i]:
-                if i > 0:
-                    # Shared is disabled except for the first configuration. This is not a limitation as any shared
-                    # setting must be present in all configurations.
-                    disabled = ["_index", "setting", "shared"]
-                else:
-                    # settings can be shared in the first configuration
-                    disabled = ["_index", "setting"]
+    tablist = st.tabs(config_list_select)
+    first_init_marker = False
+    for i, config in enumerate(st.session_state['df_opt_config']):
+        with tablist[i]:
+            if i > 0:
+                # Shared is disabled except for the first configuration. This is not a limitation as any shared
+                # setting must be present in all configurations.
+                disabled = ["_index", "setting", "shared"]
+            else:
+                # settings can be shared in the first configuration
+                disabled = ["_index", "setting"]
 
-                # The key argument has a variable string from session state that is used to reset the data editor upon
-                # changing it. Otherwise, this is the typical approach to avoid the every-other-update works only
-                # problem
-                common_keyword_args = {
-                    'key': 'opt_configs_' + str(i) + '_' + st.session_state['df_opt_config_key'][i],
-                    'hide_index': True,
-                    'use_container_width': True,
-                    'disabled': disabled,
-                    'column_order': ["value", "shared", "optimize", "lower_opt", "upper_opt", "step_opt"],
-                    'column_config': {
-                        'lower_opt': 'lower opt',
-                        'upper_opt': 'upper',
-                        'optimize': 'optimize',
-                        'step_opt': 'step'
-                    }
+            # The key argument has a variable string from session state that is used to reset the data editor upon
+            # changing it. Otherwise, this is the typical approach to avoid the every-other-update works only
+            # problem
+            common_keyword_args = {
+                'key': st.session_state['df_opt_config_key'][i],
+                'hide_index': False,
+                'width': 'stretch',
+                'disabled': disabled,
+                'column_order': ["setting", "value", "shared", "optimize", "lower_opt", "upper_opt", "step_opt"],
+                'column_config': {
+                    'lower_opt': 'lower opt',
+                    'upper_opt': 'upper',
+                    'optimize': 'optimize',
+                    'step_opt': 'step'
                 }
-                if st.session_state['df_opt_config_associated'][i] is None or first_init_marker:
-                    first_init_marker = True
-                    df_temp = st.session_state['df_opt_config_default'][i].copy()
-                    st.session_state['df_opt_config_associated'][i] = st.data_editor(
-                        df_temp,
-                        **common_keyword_args
-                    )
-                    df_config_edited = st.session_state['df_opt_config_associated'][i]
-                else:
-                    df_config_edited = st.data_editor(
-                        st.session_state['df_opt_config_associated'][i],
-                        **common_keyword_args
-                    )
+            }
 
-                st.session_state['df_opt_config_updated'][i] = df_config_edited.copy(deep=True)
-                if i == 0:
-                    adjust_consecutive_configurations(st.session_state['df_opt_config_updated'][i])
+            st.session_state['df_opt_config_edited'][i] = st.data_editor(
+                st.session_state['df_opt_config'][i].copy(deep=True),
+                **common_keyword_args
+            )
+            adjust_consecutive_configurations()
 
     st.write("""
     ### Simulated Scattering Background
@@ -301,10 +299,13 @@ with st.expander('Setup'):
     if model_name is not None and config_list_select:
         col_opt_1, col_opt_2 = st.columns([1.5, 1])
         num_datasets = len(datafile_names)
+
         li_df = []
         for i in range(num_datasets):
             li_df.append([i, None, None])
+
         df_opt_background = pandas.DataFrame(li_df, columns=["dataset", "source", "sink"])
+
         df_opt_background_edited = col_opt_1.data_editor(
             df_opt_background,
             hide_index=True,
@@ -314,12 +315,12 @@ with st.expander('Setup'):
                 'source': st.column_config.SelectboxColumn(
                     "source",
                     help="Parameter that determines background.",
-                    options=df_pars.index.values
+                    options=df_pars.index.values.tolist()
                 ),
                 'sink': st.column_config.SelectboxColumn(
                     "sink",
                     help="Parameter that determines background.",
-                    options=df_pars.index.values
+                    options=df_pars.index.values.tolist()
                 )
             }
         )
@@ -330,28 +331,57 @@ with st.expander('Setup'):
         st.write("""
         ### Shorthand Summary
         """)
-
         df_summary = summarize_optimization_parameter_settings()
         st.write(df_summary)
 
 
+datafile_names = api_sasview.extract_data_filenames_from_runfile(runfile=Path(user_sans_model_dir) / str(model_name))
+for file in datafile_names:
+    dfile = Path(user_sans_file_dir) / file
+    if not dfile.is_file():
+        infostr = 'Data file ' + file + ' not in user file folder. Please set up complete fit under Models and Fit'
+        st.info(infostr)
+        st.stop()
+
+
+# prepare fit directory
+# not needed, as app_functions.get_info_from_runfile() above is already doing this
+
+
 st.write("""
-# Run or Continue Optimization
+# Run Control
 """)
 col_opt_3, col_opt_4 = st.columns([1, 1])
-qmin = col_opt_4.number_input('q_min [1/Å]', min_value=0.0001, max_value=0.8, value=0.001, format='%.4f', key='opt_qmin')
+qmin = col_opt_3.number_input('q_min [1/Å]', min_value=0.0001, max_value=0.8, value=0.001, format='%.4f', key='opt_qmin')
 qmax = col_opt_4.number_input('q_max [1/Å]', min_value=0.0001, max_value=0.8, value=0.5, key='opt_qmax')
-tfix = col_opt_4.number_input('max time [s]   (0 = use configuation settings)', min_value=0, value=0, format='%i',
+tfix = col_opt_3.number_input('max time [s]   (0 = use configuation settings)', min_value=0, value=0, format='%i',
                               step=1200)
+kwargs_entropy_gp = {
+    'exp_par': df_summary,
+    'fitsource': 'sasview',
+    'spath': str(user_sans_opt_dir),
+    'mcmcpath': str(user_sans_fit_dir),
+    'runfile': model_name,
+    'mcmcburn': 16000,
+    'mcmcsteps': 5000,
+    'deldir': True,
+    'convergence': 2.0,
+    'fitter': 'MCMC',
+    'remove_fit_dir': True,
+    'lm_iterations': 3,
+    'mode': 'water',
+    'background_rule': None,
+    'configuration': None,
+    'qmin': qmin,
+    'qmax': qmax,
+    'qrangefromfile': False,
+    't_total': tfix,
+    'calc_symmetric': True,
+    'upper_info_plotlevel': None,
+    'plotlimits_filename': '',
+    'jupyter_clear_output': False,
+    'storage_path': None
+}
 
-opt_fitter = col_opt_3.selectbox("fitter", ['Levenberg-Marquardt', 'DREAM'])
-opt_optimizer = col_opt_3.selectbox("optimizer", ['gaussian process regression (GP)', 'grid search', ])
-if opt_optimizer == 'gaussian process regression (GP)':
-    gp_iter = col_opt_3.number_input('GP iterations', min_value=20, value=1000, format='%i', step=100)
-    opt_acq = col_opt_3.selectbox("GP acquisition function", ['shannon_ig_vec', 'ucb', 'variance', 'maximum'])
+run_control(configuration=configuration, kwargs=kwargs_entropy_gp)
 
-col_opt_5, col_opt_6 = st.columns([1, 1])
-if col_opt_5.button('Start Optimization', disabled=(status != 'idle'), use_container_width=True):
-    app_functions.run_optimization()
-if col_opt_5.button('Resume Optimization', disabled=(status != 'finished'), use_container_width=True):
-    app_functions.run_optimization()

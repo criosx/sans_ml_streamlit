@@ -1,17 +1,49 @@
+from contextlib import closing
 import pandas
 from pathlib import Path
+import socket
 import streamlit as st
+import subprocess
+import sys
 import tempfile
+import uuid
 
 from sans_app.support import configuration
 
+# first initialization
+if 'first_intialization' not in st.session_state:
+    st.session_state['first_intialization'] = True
+    st.session_state["data_folders_ready"] = False
+    st.session_state['user_root_dir'] = Path.home() / "app_data"
 
-if "data_folders_ready" not in st.session_state:
-    st.session_state["data_folders_ready"] = None
-if 'user_root_dir' not in st.session_state:
-    st.session_state.user_root_dir = Path.home() / "app_data"
-st.session_state.cfg = configuration.load_persistent_cfg()
-st.session_state["user_sans_temp_dir"] = tempfile.mkdtemp()
+    st.session_state.cfg = configuration.load_persistent_cfg()
+    # initialize some widgets
+    # force rerendering of toggle widgets
+    st.session_state['rpse_key'] = str(uuid.uuid4())
+    st.session_state['ppse_key'] = str(uuid.uuid4())
+    st.session_state['update_counter'] = 0
+    st.session_state["user_sans_temp_dir"] = tempfile.mkdtemp()
+
+    # get free server port and start PSE server
+    with closing(socket.socket(socket.AF_INET, socket.SOCK_STREAM)) as s:
+        s.bind(('', 0))  # Bind to a free port provided by the host.
+        port = s.getsockname()[1]  # Return the port number assigned.
+    st.session_state['gp_server_port'] = port
+    st.session_state['gp_server_process'] = subprocess.Popen(
+        [
+            sys.executable,
+            "-c",
+            (
+                "import sys; "
+                "from scattertools.infotheory.entropy import Entropy_server; "
+                "Entropy_server().run(int(sys.argv[1]))"
+            ),
+            str(port),
+        ],
+        stdout=None,
+        stderr=None,
+    )
+
 
 if st.session_state["data_folders_ready"]:
     df_folders = pandas.DataFrame({
@@ -80,6 +112,7 @@ df_folders
 if not st.session_state["data_folders_ready"]:
     st.info("Files and Folders not set up. Please visit the File System tab.")
     st.stop()
+
 
 st.divider()
 

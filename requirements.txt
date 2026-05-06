@@ -1,12 +1,17 @@
 bumps
 datalad
+flask
+gpcam
+ipython
 matplotlib
 numpy
 pandas
 pillow
 plotly
+scikit-learn
 streamlit
 tensorflow
+pse @ git+https://github.com/criosx/PhaseSpaceExplorer
 sasmodels @  git+https://github.com/SasView/sasmodels.git
 scattertools @ git+https://github.com/criosx/scattertools
 sasdata

@@ -5,9 +5,10 @@ from pathlib import Path
 from typing import ClassVar, Any
 
 from roadmap_datamanager.configuration import BaseConfig, load_config, save_config
+from pse.configuration import DataManagerConfig as PSEConfig
 
 @dataclass
-class DataManagerConfig(BaseConfig):
+class DataManagerConfig(PSEConfig):
     CONFIG_ENV_VAR: ClassVar[str] = "SANS_APP_CONFIG"
     CONFIG_APP_NAME: ClassVar[str] = "sans_app"
     CONFIG_APP_AUTHOR: ClassVar[str] = "streamlit"
