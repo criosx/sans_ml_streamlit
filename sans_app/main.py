@@ -11,8 +11,8 @@ import uuid
 from sans_app.support import configuration
 
 # first initialization
-if 'first_intialization' not in st.session_state:
-    st.session_state['first_intialization'] = True
+if 'first_initialization' not in st.session_state:
+    st.session_state['first_initialization'] = True
     st.session_state["data_folders_ready"] = False
     st.session_state['user_root_dir'] = Path.home() / "app_data"
 
@@ -43,7 +43,6 @@ if 'first_intialization' not in st.session_state:
         stdout=None,
         stderr=None,
     )
-
 
 if st.session_state["data_folders_ready"]:
     df_folders = pandas.DataFrame({

@@ -16,30 +16,35 @@ from sans_app.support import configuration
 
 
 def get_info_from_runfile(model_name, model_dir, file_dir, fit_dir):
-    runfile = os.path.join(model_dir, model_name)
+    file_dir = Path(file_dir).expanduser().resolve()
+    model_dir = Path(model_dir).expanduser().resolve()
+    runfile = model_dir / model_name
+
     # extract name of data files from runfile
-    datafile_names = api_sasview.extract_data_filenames_from_runfile(runfile=runfile)
+    datafile_names = api_sasview.extract_data_filenames_from_runfile(runfile=str(runfile))
 
     # strip any long path from filename and retain only the basename, write back to file
-    datafile_names = [os.path.basename(file) for file in datafile_names]
-    api_sasview.write_data_filenames_to_runfile(runfile=runfile, filelist=datafile_names)
+    datafile_names = [Path(file).name for file in datafile_names]
+    api_sasview.write_data_filenames_to_runfile(runfile=str(runfile), filelist=datafile_names)
 
     # check data files
-    datafile_names_user = [os.path.join(file_dir, os.path.basename(file)) for file in datafile_names]
-    molstat.prepare_fit_directory(fitdir=fit_dir, runfile=runfile, datafile_names=datafile_names_user)
+    datafile_names_user = [str(file_dir / Path(file).name) for file in datafile_names]
+    molstat.prepare_fit_directory(fitdir=str(fit_dir), runfile=str(runfile), datafile_names=datafile_names_user)
     # if datafiles exist in user filedir, use those; otherwise create dummy files
     for filename in datafile_names_user:
-        if os.path.isfile(filename):
-            shutil.copyfile(filename, os.path.join(fit_dir, os.path.basename(filename)))
+        if Path(filename).is_file():
+            if not (fit_dir / Path(filename).name).is_file():
+                shutil.copyfile(filename, fit_dir / Path(filename).name)
         else:
-            api_sasview.write_dummy_sans_file(os.path.join(fit_dir, os.path.basename(filename)))
+            api_sasview.write_dummy_sans_file(str(fit_dir / Path(filename).name))
 
+    # change of cwd is necessary since many fit setup scripts use relative filepaths
     os.chdir(fit_dir)
     fitobj = molstat.CMolStat(
         fitsource="SASView",
         spath=fit_dir,
         mcmcpath="MCMC",
-        runfile=os.path.basename(runfile),
+        runfile=runfile.name,
         state=None,
         problem=None,
     )
