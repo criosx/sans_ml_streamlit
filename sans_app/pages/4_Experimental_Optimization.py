@@ -1,3 +1,4 @@
+
 import pandas
 from pathlib import Path
 import streamlit as st
@@ -7,12 +8,16 @@ from sans_app.support import app_functions
 from sans_app.support import configuration
 
 from scattertools.support import api_sasview
-from pse.streamlit_components import (check_session_state, clear_project_data_dialog, monitor, run_control,
-                                      save_session_state)
+from pse.streamlit_components import check_session_state, monitor, run_control, pse_directory
 
 if not st.session_state["data_folders_ready"]:
     st.info("Files and Folders not set up. Please visit the File System tab.")
     st.stop()
+
+if 'pse_jobs_status' not in st.session_state:
+    st.session_state['pse_jobs_status'] = 'idle'
+
+cfg = st.session_state.cfg
 
 # the optimization directory, that will contain all PSE-related files
 user_sans_opt_dir = st.session_state['user_sans_opt_dir']
@@ -205,58 +210,59 @@ st.write("""
 
 with ((st.expander('Setup'))):
     st.write("""
+    ## PSE Directory
+    """)
+    pse_directory(identifier='SANS_experimental_optimization', st_directory_identifier='pse_dir')
+
+    st.write("""
     ## SANS Model
     """)
-    if 'pse_model_name' in st.session_state and st.session_state['pse_model_name'] in model_list:
-         indx = model_list.index(st.session_state['pse_model_name'])
+    if cfg.pse_model_name in model_list:
+         indx = model_list.index(cfg.pse_model_name)
     else:
-        st.session_state['pse_model_name'] = None
+        cfg.pse_model_name = None
         indx = None
 
-    model_name = st.selectbox("Select from user directory", model_list, index=indx, key='opt_sans_model_selectbox')
+    model_name = st.selectbox("Select from user directory", model_list, index=indx)
 
     if model_name is None:
         st.info("Please select a SANS model.")
+        configuration.save_persistent_cfg(cfg)
         st.stop()
-    if st.session_state['pse_model_name'] != model_name:
-        st.session_state['pse_model_name'] = model_name
-        save_session_state(st.session_state['pse_dir'])
+    if model_name != cfg.pse_model_name:
+        cfg.pse_model_name = model_name
 
     # this also copies the runfile and the data files to user_sans_opt_dir
     df_pars, li_all_pars, datafile_names, model_fitobj = \
-        app_functions.get_info_from_runfile(model_name, user_sans_model_dir, user_sans_file_dir, user_sans_opt_dir)
+        app_functions.process_runfile(cfg.pse_model_name,
+                                      user_sans_model_dir,
+                                      user_sans_file_dir,
+                                      user_sans_opt_dir,
+                                      force=False,
+                                      correct_data_paths=False)
     df_pars = df_pars.drop(index=['number', 'relval', 'variable', 'error'])
     df_pars = df_pars.transpose()
 
     st.write("""
     ## Instrument Configurations
     """)
-    if 'pse_config_list_select' in st.session_state:
-        config_list_default = [
-            config_name
-            for config_name in st.session_state['pse_config_list_select']
-            if config_name in config_list
-        ]
-    else:
-        st.session_state['pse_config_list_select'] = []
-        config_list_default = []
+    config_list_default = [
+        config_name
+        for config_name in cfg.pse_config_list
+        if config_name in config_list
+    ]
 
-    config_list_select = st.multiselect(
-        "Select from user directory",
-        config_list,
-        default=config_list_default,
-        key='opt_sans_config_multiselect'
-    )
+    config_list_select = st.multiselect("Select from user directory", config_list, default=config_list_default)
     if not config_list_select:
         st.info("Please select an instrument configuration.")
+        configuration.save_persistent_cfg(cfg)
         st.stop()
 
-    if st.session_state['pse_config_list_select'] != config_list_select:
-        st.session_state['pse_config_list_select'] = config_list_select
-        save_session_state(st.session_state['pse_dir'])
+    if cfg.pse_config_list != config_list_select:
+        cfg.pse_config_list = config_list_select
 
     # load and process configuration files
-    update_df_config(config_list_select)
+    update_df_config(cfg.pse_config_list)
 
     st.write("""
     ## Parameters
@@ -331,7 +337,7 @@ with ((st.expander('Setup'))):
     st.write("""
     ### Simulated Scattering Background
     """)
-    if model_name is not None and config_list_select:
+    if cfg.pse_model_name is not None and config_list_select:
         col_opt_1, col_opt_2 = st.columns([1.5, 1])
         num_datasets = len(datafile_names)
 
@@ -370,7 +376,8 @@ with ((st.expander('Setup'))):
         st.write(df_summary)
 
 
-datafile_names = api_sasview.extract_data_filenames_from_runfile(runfile=Path(user_sans_model_dir) / str(model_name))
+datafile_names = api_sasview.extract_data_filenames_from_runfile(
+    runfile=Path(user_sans_model_dir) / str(cfg.pse_model_name))
 for file in datafile_names:
     dfile = Path(user_sans_file_dir) / file
     if not dfile.is_file():
@@ -380,7 +387,7 @@ for file in datafile_names:
 
 
 # prepare fit directory
-# not needed, as app_functions.get_info_from_runfile() above is already doing this
+# not needed, as app_functions.process_runfile() above is already doing this
 
 
 st.write("""
@@ -388,42 +395,36 @@ st.write("""
 ## Data Simulation
 """)
 col_opt_3, col_opt_4 = st.columns([1, 1])
-default_qmin = st.session_state['pse_qmin'] if 'pse_qmin' in st.session_state else 0.001
-default_qmax = st.session_state['pse_qmax'] if 'pse_qmax' in st.session_state else 0.5
-default_tfix = st.session_state['pse_tfix'] if 'pse_tfix' in st.session_state else 0
-qmin = col_opt_3.number_input('q_min [1/Å]', min_value=0.0001, max_value=0.8, value=default_qmin, format='%.4f')
-qmax = col_opt_4.number_input('q_max [1/Å]', min_value=0.0001, max_value=0.8, value=default_qmax)
-tfix = col_opt_3.number_input('max time [s]   (0 = use configuration settings)', min_value=0, value=default_tfix,
-                              format='%i', step=1200)
-st.session_state['pse_qmin'] = qmin
-st.session_state['pse_qmax'] = qmax
-st.session_state['pse_tfix'] = tfix
+col_opt_3.number_input('q_min [1/Å]', min_value=0.0001, max_value=0.8, value=cfg.pse_qmin, format='%.4f',
+                       key='pse_qmin')
+cfg.pse_qmin = st.session_state.pse_qmin
+col_opt_4.number_input('q_max [1/Å]', min_value=0.0001, max_value=0.8, value=cfg.pse_qmax, key='pse_qmax')
+cfg.pse_qmax = st.session_state.pse_qmax
+col_opt_3.number_input('max time [s]   (0 = use configuration settings)', min_value=0., key='pse_tfix',
+                       value=cfg.pse_tfix, format='%f', step=1200.)
+cfg.pse_tfix = st.session_state.pse_tfix
 
 st.write("""
 ## Data Fitting
 """)
-
 col_opt_5, col_opt_6 = st.columns([1, 1])
-default_fitter = st.session_state['pse_fitter'] if 'pse_fitter' in st.session_state else 'MCMC'
-default_mcmcburn = st.session_state['pse_mcmcburn'] if 'pse_mcmcburn' in st.session_state else 100
-default_mcmcsteps = st.session_state['pse_mcmcsteps'] if 'pse_mcmcsteps' in st.session_state else 100
 options=['MCMC', 'LM']
-indx = options.index(default_fitter)
-fitter = col_opt_5.selectbox(label='optimizer', options=options, index=indx)
-if fitter == 'MCMC':
-    mcmcburn = col_opt_6.number_input('MCMC burn', min_value=100, value=default_mcmcburn, step=100)
-    mcmcsteps = col_opt_6.number_input('MCMC steps', min_value=100, value=default_mcmcsteps, step=100)
-else:
-    mcmcburn = default_mcmcburn
-    mcmcsteps = default_mcmcsteps
+indx = options.index(cfg.pse_fitter)
+col_opt_5.selectbox(label='optimizer', options=options, index=indx, key='pse_fitter')
+cfg.pse_fitter = st.session_state.pse_fitter
+if cfg.pse_fitter == 'MCMC':
+    col_opt_6.number_input('MCMC burn', min_value=100, value=cfg.pse_mcmcburn, step=100, key='pse_mcmcburn')
+    cfg.pse_mcmcburn = st.session_state.pse_mcmcburn
+    col_opt_6.number_input('MCMC steps', min_value=100, value=cfg.pse_mcmcsteps, step=100, key='pse_mcmcsteps')
+    cfg.pse_mcmcsteps = st.session_state.pse_mcmcsteps
 
 kwargs_entropy_gp = {
     'exp_par': df_summary,
     'fitsource': 'sasview',
     'storage_path': str(user_sans_opt_dir),
-    'runfile': model_name,
-    'mcmcburn': mcmcburn,
-    'mcmcsteps': mcmcsteps,
+    'runfile': cfg.pse_model_name,
+    'mcmcburn': cfg.pse_mcmcburn,
+    'mcmcsteps': cfg.pse_mcmcsteps,
     'deldir': True,
     'convergence': 2.0,
     'fitter': 'MCMC',
@@ -432,20 +433,20 @@ kwargs_entropy_gp = {
     'mode': 'water',
     'background_rule': None,
     'configuration': st.session_state['pse_configurations'],
-    'qmin': qmin,
-    'qmax': qmax,
+    'qmin': cfg.pse_qmin,
+    'qmax': cfg.pse_qmax,
     'qrangefromfile': False,
-    't_total': tfix,
+    't_total': cfg.pse_tfix,
     'calc_symmetric': True,
     'upper_info_plotlevel': None,
     'plotlimits_filename': '',
     'jupyter_clear_output': False
 }
 
-save_session_state(st.session_state['pse_dir'])
-
 st.write("""
 ## Phase Space Exploration
 """)
 run_control(configuration=configuration, kwargs=kwargs_entropy_gp)
+
+configuration.save_persistent_cfg(cfg)
 

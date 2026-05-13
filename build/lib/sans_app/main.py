@@ -1,15 +1,53 @@
-
+from contextlib import closing
 import pandas
+from pathlib import Path
+import socket
 import streamlit as st
+import subprocess
+import sys
+import tempfile
+import uuid
 
-from sans_app.support import app_functions
+from sans_app.support import configuration
 
-app_functions.setup_app_dirs(create_dirs=False, copy_examples=False, init_datalad=False)
+# first initialization
+if 'first_initialization' not in st.session_state:
+    st.session_state['first_initialization'] = True
+    st.session_state["data_folders_ready"] = False
+    st.session_state['user_root_dir'] = Path.home() / "app_data"
+
+    st.session_state.cfg = configuration.load_persistent_cfg()
+    # initialize some widgets
+    # force rerendering of toggle widgets
+    st.session_state['rpse_key'] = str(uuid.uuid4())
+    st.session_state['ppse_key'] = str(uuid.uuid4())
+    st.session_state['update_counter'] = 0
+    st.session_state["user_sans_temp_dir"] = tempfile.mkdtemp()
+
+    # get free server port and start PSE server
+    with closing(socket.socket(socket.AF_INET, socket.SOCK_STREAM)) as s:
+        s.bind(('', 0))  # Bind to a free port provided by the host.
+        port = s.getsockname()[1]  # Return the port number assigned.
+    st.session_state['gp_server_port'] = port
+    st.session_state['gp_server_process'] = subprocess.Popen(
+        [
+            sys.executable,
+            "-c",
+            (
+                "import sys; "
+                "from scattertools.infotheory.entropy import Entropy_server; "
+                "Entropy_server().run(int(sys.argv[1]))"
+            ),
+            str(port),
+        ],
+        stdout=None,
+        stderr=None,
+    )
 
 if st.session_state["data_folders_ready"]:
     df_folders = pandas.DataFrame({
-        'App home': [str(st.session_state['app_dir'])],
-        'Data home': [str(st.session_state['dataroot_dir'])],
+        'User home': [str(st.session_state['user_root_dir'])],
+        'Data home': [str(st.session_state.cfg.dm_root)],
         'SANS models': [str(st.session_state['user_sans_model_dir'])],
         'SANS data': [str(st.session_state['user_sans_file_dir'])],
         'SANS instrument configurations': [str(st.session_state['user_sans_config_dir'])],
@@ -19,7 +57,7 @@ if st.session_state["data_folders_ready"]:
     })
 else:
     df_folders = pandas.DataFrame({
-        'App home': [str(st.session_state['app_dir'])],
+        'User home': [str(st.session_state['user_root_dir'])],
     })
 
 df_folders = df_folders.T
@@ -73,6 +111,7 @@ df_folders
 if not st.session_state["data_folders_ready"]:
     st.info("Files and Folders not set up. Please visit the File System tab.")
     st.stop()
+
 
 st.divider()
 

@@ -66,7 +66,7 @@ def column_simulate_data(column_number=None, col=None, model_list=None, config_l
 
     if model_name is not None:
         df_pars, li_allpars, datafile_names, fitobj = \
-            app_functions.get_info_from_runfile(model_name, user_sans_model_dir, user_sans_file_dir, user_sans_temp_dir)
+            app_functions.process_runfile(model_name, user_sans_model_dir, user_sans_file_dir, user_sans_temp_dir)
         simpar = pandas.DataFrame(df_pars.loc['value'])
         simpar.reset_index(inplace=True)
         simpar.columns = ['par', 'value']

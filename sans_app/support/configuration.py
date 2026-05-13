@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import ClassVar, Any
 
@@ -13,6 +13,21 @@ class DataManagerConfig(PSEConfig):
     CONFIG_APP_NAME: ClassVar[str] = "sans_app"
     CONFIG_APP_AUTHOR: ClassVar[str] = "streamlit"
     CONFIG_FILENAME: ClassVar[str] = "config.json"
+
+    # pse setup
+    pse_model_name: str = ''
+    pse_config_list: list[str] = field(default_factory=list)
+
+    # pse data simulation
+    pse_qmin: float = 0.001
+    pse_qmax: float = 0.5
+    pse_tfix: float = 0
+
+    # pse data fitting
+    pse_fitter: str = 'LM'
+    pse_mcmcburn: int = 100
+    pse_mcmcsteps: int = 100
+
 
 def load_persistent_cfg() -> DataManagerConfig:
     config_cls = DataManagerConfig

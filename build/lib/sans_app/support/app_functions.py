@@ -1,51 +1,67 @@
-import glob
+from __future__ import annotations
+
 import os
 from PIL import Image
 import pandas
 from pathlib import Path
-from roadmap_datamanager import datamanager
 from sasmodels.data import load_data
 from scattertools.support import molstat
 from scattertools.support import api_sasview
 import shutil
 import streamlit as st
 import subprocess
+from typing import Optional, Dict, Any
 
 from sans_app.support import configuration
 
 
-def get_info_from_runfile(model_name, model_dir, file_dir, fit_dir):
-    runfile = os.path.join(model_dir, model_name)
+def process_runfile(model_name, model_dir, file_dir, fit_dir):
+    """
+    Parses a run script and extracts parameters and data filenames from it. Given a fit_dir, it copies the data files
+    and the script file to this directory from model_dir and file_dir, respectively. All other contents from the fit_dir
+    are deleted.
+
+    :param model_name: (str) The namem of the model, including file extension.
+    :param model_dir: (str or Path-like) The directory of the model.
+    :param file_dir: (str or Path-like) The directory of the data files.
+    :param fit_dir: (str or Path-like) The directory in which the fit problem will be initialized.
+    :return: (Pandas dataframe) of all parameters, (list) of all parameter names, (list) of all data filenames,
+             (bumps problem) an instance of the fit object
+    """
+    file_dir = Path(file_dir).expanduser().resolve()
+    model_dir = Path(model_dir).expanduser().resolve()
+    runfile = model_dir / model_name
+
     # extract name of data files from runfile
-    datafile_names = api_sasview.extract_data_filenames_from_runfile(runfile=runfile)
+    datafile_names = api_sasview.extract_data_filenames_from_runfile(runfile=str(runfile))
 
     # strip any long path from filename and retain only the basename, write back to file
-    datafile_names = [os.path.basename(file) for file in datafile_names]
-    api_sasview.write_data_filenames_to_runfile(runfile=runfile, filelist=datafile_names)
+    datafile_names = [Path(file).name for file in datafile_names]
+    api_sasview.write_data_filenames_to_runfile(runfile=str(runfile), filelist=datafile_names)
 
-    # check if data files are in user folder, if not then create dummy files
-    datafile_names_user = [os.path.join(file_dir, os.path.basename(file)) for file in datafile_names]
-
-    molstat.prepare_fit_directory(fitdir=fit_dir, runfile=runfile, datafile_names=datafile_names_user)
-
+    # check data files
+    datafile_names_user = [str(file_dir / Path(file).name) for file in datafile_names]
+    molstat.prepare_fit_directory(fitdir=str(fit_dir), runfile=str(runfile), datafile_names=datafile_names_user)
     # if datafiles exist in user filedir, use those; otherwise create dummy files
     for filename in datafile_names_user:
-        if os.path.isfile(filename):
-            shutil.copyfile(filename, os.path.join(fit_dir, os.path.basename(filename)))
+        if Path(filename).is_file():
+            if not (fit_dir / Path(filename).name).is_file():
+                shutil.copyfile(filename, fit_dir / Path(filename).name)
         else:
-            api_sasview.write_dummy_sans_file(os.path.join(fit_dir, os.path.basename(filename)))
+            api_sasview.write_dummy_sans_file(str(fit_dir / Path(filename).name))
 
+    # change of cwd is necessary since many fit setup scripts use relative filepaths
     os.chdir(fit_dir)
     fitobj = molstat.CMolStat(
         fitsource="SASView",
         spath=fit_dir,
         mcmcpath="MCMC",
-        runfile=os.path.basename(runfile),
+        runfile=runfile.name,
         state=None,
         problem=None,
     )
     df_pars = pandas.DataFrame.from_dict(fitobj.fnLoadParameters())
-    li_allpars = list(fitobj.Interactor.problem.model_parameters().keys())
+    li_allpars = fitobj.fnGetAllParameterNames(model=0)
 
     return df_pars, li_allpars, datafile_names, fitobj
 
@@ -58,9 +74,9 @@ def load_SANS_data(uploaded_file, file_save_dir):
         ds, tb_output, file_name = load_sans_file(uploaded_file.name, file_save_dir)
         if file_name is None:
             uploaded_file = None
-    except IOError:
+    except (IOError, TypeError) as exc:
         ds = None
-        tb_output = ["Invalid SANS data file."]
+        tb_output = "Invalid SANS data file. " + str(exc)
         uploaded_file = None
     return ds, tb_output, uploaded_file
 
@@ -81,9 +97,9 @@ def load_sans_file(file_name, file_dir):
              }
         )
         tb_output = ""
-    except IOError:
+    except (IOError, TypeError) as exc:
         ds = None
-        tb_output = ["Invalid SANS data file."]
+        tb_output = "Invalid SANS data file. " + str(exc)
         file_name = None
 
     return ds, tb_output, file_name
@@ -97,23 +113,6 @@ def load_sans_files(filelist, file_dir):
                 f.write(file.getbuffer())
         except IOError:
             pass
-
-
-def monitor_jobs(job_dir):
-    status_path = os.path.join(job_dir, 'status.json')
-
-    if not os.path.isfile(status_path):
-        status = 'idle'
-    else:
-        status_df = pandas.read_json(status_path)
-        status = status_df['status'].values[0]
-
-    # last modification to top experimental optimization folder
-    list_of_files = glob.glob(job_dir)
-    latest_file = max(list_of_files, key=os.path.getctime)
-    jobtime = os.path.getctime(latest_file)
-
-    return jobtime, status
 
 
 def run_fit(fitdir=None, runfile=None, datafile_names=None, datafile_names_uploaded=None, file_dir=None, model_dir=None,
@@ -182,121 +181,3 @@ def run_fit(fitdir=None, runfile=None, datafile_names=None, datafile_names_uploa
 
     os.chdir(olddir)
     return
-
-
-def run_optimization(optdir=None, runfile=None, file_dir=None, model_dir=None, burn=1000, steps=200):
-
-    datafile_names = api_sasview.extract_data_filenames_from_runfile(runfile=runfile)
-    for file in datafile_names:
-        dfile = os.path.join(file_dir, file)
-        if not os.path.isfile(dfile):
-            infostr = 'Data file ' + file + ' not in user file folder. Please set up complete fit under Models and Fit'
-            st.info(infostr)
-            return
-
-    datafpaths = [os.path.join(file_dir, file) for file in datafile_names]
-    molstat.prepare_fit_directory(fitdir=optdir, runfile=os.path.join(model_dir, runfile), datafile_names=datafpaths)
-
-    # TODO: copy optimization specific files
-
-def setup_app_dirs(
-        create_dirs=False,
-        copy_examples=False,
-        init_datalad=False):
-    """
-    Sets up directories for app use. Initializes the datamanager.
-    :param create_dirs: (bool) whether to create directories if they do not exist
-    :param copy_examples: (bool) whether to copy provided examples to user folders
-    :param init_datalad: (bool) whether to initialize the DataLad repo in the app dir tree
-    :return:
-    """
-    # check if canonical app working directories exist
-    app_dir = Path.home() / "app_data" / "sans_app"
-    app_dir.mkdir(parents=True, exist_ok=True)
-    st.session_state['app_dir'] = app_dir
-
-    # load config file from disc
-    cfg = configuration.load_persistent_cfg()
-    st.session_state["cfg"] = cfg
-
-    # default data root based on username
-    dataroot_dir = app_dir / cfg.user_name
-    st.session_state['dataroot_dir'] = dataroot_dir
-
-    if cfg.project is None or cfg.campaign is None or cfg.experiment is None:
-        st.session_state["data_folders_ready"] = False
-        return
-
-    exp_root = dataroot_dir / cfg.project / cfg.campaign / cfg.experiment
-    if not (exp_root.is_dir() or create_dirs):
-        st.session_state["data_folders_ready"] = False
-        return
-
-    st.session_state["data_folders_ready"] = True
-    dataroot_dir.mkdir(parents=True, exist_ok=True)
-    exp_root.mkdir(parents=True, exist_ok=True)
-
-    user_sans_config_dir = exp_root / 'SANS_configurations'
-    user_sans_config_dir.mkdir(parents=True, exist_ok=True)
-    user_ml_model_dir = exp_root / 'ml_models'
-    user_ml_model_dir.mkdir(parents=True, exist_ok=True)
-    user_sans_model_dir = exp_root / 'SANS_models'
-    user_sans_model_dir.mkdir(parents=True, exist_ok=True)
-    user_sans_file_dir = exp_root / 'SANS_files'
-    user_sans_file_dir.mkdir(parents=True, exist_ok=True)
-    user_sans_fit_dir = exp_root / 'SANS_fit'
-    user_sans_fit_dir.mkdir(parents=True, exist_ok=True)
-    user_sans_opt_dir = exp_root / 'SANS_experimental_optimization'
-    user_sans_opt_dir.mkdir(parents=True, exist_ok=True)
-    temp_dir = exp_root / 'temp'
-    temp_dir.mkdir(parents=True, exist_ok=True)
-
-    # save paths to persistent session state
-    st.session_state['user_sans_config_dir'] = user_sans_config_dir
-    st.session_state['user_sans_model_dir'] = user_sans_model_dir
-    st.session_state['user_sans_file_dir'] = user_sans_file_dir
-    st.session_state['user_sans_fit_dir'] = user_sans_fit_dir
-    st.session_state['user_sans_opt_dir'] = user_sans_opt_dir
-    st.session_state['user_ml_model_dir'] = user_ml_model_dir
-
-    if copy_examples:
-        # Copy example SANS models into user model directory if not already present.
-        # This makes sure that a new user always has a selection of models available.
-        example_model_dir = Path(__file__).parent.parent / 'example_data' / "example_SANS_models"
-        for src in example_model_dir.iterdir():
-            dst = Path(user_sans_model_dir) / src.name
-            if src.is_file() and not dst.exists():
-                shutil.copyfile(src, dst)
-
-        # For similar reasons, copy one data file to the user directory. This data file is the default for the example models.
-        src = Path(__file__).parent.parent / 'example_data' / 'example_SANS_files' / 'data0.dat'
-        dst = Path(user_sans_file_dir) / 'data0.dat'
-        if not dst.exists():
-            shutil.copyfile(src, dst)
-
-        # And do this for configurations
-        example_config_dir = Path(__file__).parent.parent / 'example_data' / 'example_SANS_configurations'
-        config_files = [f for f in example_config_dir.iterdir()]
-        for file in config_files:
-            if not os.path.isfile(os.path.join(user_sans_config_dir, file.name)):
-                shutil.copyfile(str(file), os.path.join(user_sans_config_dir, file.name))
-
-    # st.session_state['example_sans_config_dir'] = example_config_dir
-
-    if init_datalad:
-        dm = datamanager.DataManager(
-            root= dataroot_dir,
-            user_name = cfg.user_name,
-            user_email = cfg.user_email,
-            default_project = cfg.project,
-            default_campaign = cfg.campaign,
-            GIN_url = cfg.GIN_url,
-            GIN_repo = cfg.GIN_repo,
-            GIN_user = cfg.GIN_user,
-            verbose=True
-        )
-        st.session_state['datamanager'] = dm
-        # ensure that data structure is a datalad tree
-        dm.init_tree(project=cfg.project, campaign=cfg.campaign, experiment=cfg.experiment, force=True)
-    else:
-        st.session_state['datamanager'] = None

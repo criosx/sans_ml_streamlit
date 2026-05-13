@@ -104,7 +104,12 @@ with st.expander("Edit Model Script"):
 col1_1, col1_2 = st.columns([1, 1])
 # create a fit object in the temp directory
 df_pars, li_all_pars, datafile_names, model_fitobj = \
-    app_functions.get_info_from_runfile(model_name, user_sans_model_dir, user_sans_file_dir, user_sans_fit_dir)
+    app_functions.process_runfile(model_name, 
+                                  user_sans_model_dir,
+                                  user_sans_file_dir,
+                                  user_sans_fit_dir,
+                                  force=True,
+                                  correct_data_paths=True)
 df_pars = df_pars.drop(index=['number', 'relval', 'variable', 'error', 'value'])
 df_pars = df_pars.transpose()
 
