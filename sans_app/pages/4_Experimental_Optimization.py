@@ -102,9 +102,9 @@ def summarize_optimization_parameter_settings():
             upper_opt = str(row['upper_opt'])
             step_opt = str(row['step_opt'])
         else:
-            lower_opt = ''
-            upper_opt = ''
-            step_opt = ''
+            lower_opt = None
+            upper_opt = None
+            step_opt = None
         li_summary.append([partype, dataset, parconfig, parname, row['value'], row['lowerlimit'], row['upperlimit'],
                            lower_opt, upper_opt, step_opt])
 
@@ -124,12 +124,15 @@ def summarize_optimization_parameter_settings():
                 upper_opt = str(row['upper_opt'])
                 step_opt = str(row['step_opt'])
             else:
-                lfit = ufit = lower_opt = upper_opt = step_opt = ''
+                lfit = ufit = lower_opt = upper_opt = step_opt = None
 
             li_summary.append(['n', '*', parconfig, parname, row['value'], lfit, ufit, lower_opt, upper_opt, step_opt])
 
-    df_summary = pandas.DataFrame(li_summary, columns=['type', 'dataset', 'config.', 'parameter', 'value', 'l_fit',
-                                                       'u_fit', 'l_opt', 'u_opt', 'step_opt'])
+    columns = pandas.Index(['type', 'dataset', 'config.', 'parameter', 'value', 'l_fit', 'u_fit', 'l_opt', 'u_opt',
+                            'step_opt'])
+    df_summary = pandas.DataFrame(li_summary, columns=columns)
+    # remove shared configuration parameters that end up being exact duplicate rows
+    df_summary = df_summary.drop_duplicates()
 
     return df_summary
 
