@@ -8,41 +8,8 @@ from sans_app.support import app_functions
 from sans_app.support import configuration
 
 from scattertools.support import api_sasview
-from pse.streamlit_components import check_session_state, monitor, run_control, pse_directory
-
-if not st.session_state["data_folders_ready"]:
-    st.info("Files and Folders not set up. Please visit the File System tab.")
-    st.stop()
-
-if 'pse_jobs_status' not in st.session_state:
-    st.session_state['pse_jobs_status'] = 'idle'
-
-cfg = st.session_state.cfg
-
-# the optimization directory, that will contain all PSE-related files
-user_sans_opt_dir = st.session_state['user_sans_opt_dir']
-# Streamlit components from the PSE module expect this canonical directory
-st.session_state['pse_dir'] = st.session_state['user_sans_opt_dir']
-# the model directory used by other pages of this app, as well
-user_sans_model_dir = st.session_state['user_sans_model_dir']
-# the dirctory containing all the SANS scattering data files
-user_sans_file_dir = st.session_state['user_sans_file_dir']
-# the directory that contains the current fit (runfile) that will be used for the optimization
-user_sans_fit_dir = st.session_state['user_sans_fit_dir']
-# the directory that contains the configuration files from which can be chosen
-user_sans_config_dir = st.session_state['user_sans_config_dir']
-# the temp directory for various purposes
-user_sans_temp_dir = st.session_state['user_sans_temp_dir']
-
-# some analysis of the present files
-file_list = sorted(p.name for p in Path(user_sans_file_dir).iterdir()
-                   if p.is_file() and not p.name.startswith('.'))
-
-model_list = sorted(p.name for p in Path(user_sans_model_dir).iterdir()
-                   if p.is_file() and not p.name.startswith('.'))
-
-config_list = sorted(p.name for p in Path(user_sans_config_dir).iterdir()
-                   if p.is_file() and not p.name.startswith('.'))
+from pse.streamlit_components import (start_of_script_business, monitor, run_control, pse_directory,
+                                      end_of_script_business)
 
 # ------------ Functionality -----------
 
@@ -145,22 +112,8 @@ def update_df_config(config_list_select):
     passing into Entropy().
 
     :param config_list_select: list of configuration filenames
-    :return:
+    :return: no return value
     """
-
-    # function argument homogeineization
-    if config_list_select is not None:
-        if not isinstance(config_list, list):
-            config_list_select = [config_list_select]
-    else:
-        config_list_select = []
-
-    # only run update if config_lisit_select has changed
-    if 'opt_config_list_select' in st.session_state and \
-            st.session_state['opt_config_list_select'] == config_list_select:
-        return
-    else:
-        st.session_state['opt_config_list_select'] = config_list_select
 
     df_config = []          # for streamlit data input and downstream processing
     configurations = []     # do be passed to Entropy(config= )
@@ -200,7 +153,37 @@ def update_df_config(config_list_select):
     return
 
 # ------------  GUI -------------------
-check_session_state()
+start_of_script_business()
+
+cfg = st.session_state.cfg
+
+# the optimization directory, that will contain all PSE-related files
+user_sans_opt_dir = st.session_state['user_sans_opt_dir']
+# Streamlit components from the PSE module expect this canonical directory
+st.session_state['pse_dir'] = st.session_state['user_sans_opt_dir']
+# the model directory used by other pages of this app, as well
+user_sans_model_dir = st.session_state['user_sans_model_dir']
+# the dirctory containing all the SANS scattering data files
+user_sans_file_dir = st.session_state['user_sans_file_dir']
+# the directory that contains the current fit (runfile) that will be used for the optimization
+user_sans_fit_dir = st.session_state['user_sans_fit_dir']
+# the directory that contains the configuration files from which can be chosen
+user_sans_config_dir = st.session_state['user_sans_config_dir']
+# the temp directory for various purposes
+user_sans_temp_dir = st.session_state['user_sans_temp_dir']
+
+# some analysis of the present files
+file_list = sorted(p.name for p in Path(user_sans_file_dir).iterdir()
+                   if p.is_file() and not p.name.startswith('.'))
+
+model_list = sorted(p.name for p in Path(user_sans_model_dir).iterdir()
+                   if p.is_file() and not p.name.startswith('.'))
+
+config_list = sorted(p.name for p in Path(user_sans_config_dir).iterdir()
+                   if p.is_file() and not p.name.startswith('.'))
+
+
+
 st.write("""
 # Job Monitor
 """)
@@ -234,17 +217,16 @@ with ((st.expander('Setup'))):
         st.stop()
     if model_name != cfg.pse_model_name:
         cfg.pse_model_name = model_name
+        st.session_state['pse_opt_pars_key'] = uuid.uuid4()
 
-    # this also copies the runfile and the data files to user_sans_opt_dir
-    df_pars, li_all_pars, datafile_names, model_fitobj = \
-        app_functions.process_runfile(cfg.pse_model_name,
-                                      user_sans_model_dir,
-                                      user_sans_file_dir,
-                                      user_sans_opt_dir,
-                                      force=False,
-                                      correct_data_paths=False)
-    df_pars = df_pars.drop(index=['number', 'relval', 'variable', 'error'])
-    df_pars = df_pars.transpose()
+    datafile_names = api_sasview.extract_data_filenames_from_runfile(
+        runfile=Path(user_sans_model_dir) / str(cfg.pse_model_name))
+    for file in datafile_names:
+        dfile = Path(user_sans_file_dir) / file
+        if not dfile.is_file():
+            infostr = 'Data file ' + file + ' not in user file folder. Please set up complete fit under Models and Fit'
+            st.info(infostr)
+            st.stop()
 
     st.write("""
     ## Instrument Configurations
@@ -255,30 +237,57 @@ with ((st.expander('Setup'))):
         if config_name in config_list
     ]
 
-    config_list_select = st.multiselect("Select from user directory", config_list, default=config_list_default)
+    if 'pse_default_config_list' not in st.session_state or st.session_state['configuration_reloaded']:
+        st.session_state['pse_default_config_list'] = config_list_default
+        st.session_state['config_multiselect_key'] = uuid.uuid4()
+
+    config_list_select:list = st.multiselect("Select from user directory",
+                                             config_list,
+                                             key=st.session_state['config_multiselect_key'],
+                                             default=st.session_state['pse_default_config_list'])
     if not config_list_select:
         st.info("Please select an instrument configuration.")
-        configuration.save_persistent_cfg(cfg)
         st.stop()
 
-    if cfg.pse_config_list != config_list_select:
+    if cfg.pse_config_list != config_list_select or 'df_opt_config' not in st.session_state:
         cfg.pse_config_list = config_list_select
-
-    # load and process configuration files
-    update_df_config(cfg.pse_config_list)
+        # load and process configuration files, provide new widget keys if necessary
+        update_df_config(cfg.pse_config_list)
 
     st.write("""
     ## Parameters
     ### Model Fit
     """)
+    # this also copies the runfile and the data files to user_sans_opt_dir, we try to run this function with @st.cache
+    df_pars, li_all_pars, datafile_names, model_fitobj = \
+        app_functions.process_runfile(cfg.pse_model_name,
+                                      user_sans_model_dir,
+                                      user_sans_file_dir,
+                                      user_sans_opt_dir,
+                                      force=False,
+                                      correct_data_paths=False)
+    df_pars = df_pars.drop(index=['number', 'relval', 'variable', 'error'])
+    df_pars = df_pars.transpose()
     df_pars['relative'] = True
     df_pars['lower_opt'] = 0.0
     df_pars['upper_opt'] = 1.0
     df_pars['optimize'] = False
     df_pars['type'] = 'information'
     df_pars['step_opt'] = 0.1
-    parameters_edited = st.data_editor(
+
+
+    if  st.session_state['configuration_reloaded']:
+        saved_pars = cfg.pse_parameters_edited_json
+        # check if reloaded config is non-empty and contains row dictionaries
+        if isinstance(saved_pars, list) and saved_pars and all(isinstance(row, dict) for row in saved_pars):
+            df_pars = pandas.DataFrame(saved_pars)
+            if "index" in df_pars.columns:
+                df_pars.set_index("index", inplace=True)
+        st.session_state['pse_opt_pars_key'] = uuid.uuid4()
+
+    st.session_state['opt_parameters'] = st.data_editor(
         df_pars,
+        key = st.session_state['pse_opt_pars_key'],
         disabled=["_index"],
         column_order=["type", "value", "lowerlimit", "upperlimit", "relative", "optimize", "lower_opt", "upper_opt",
                       "step_opt"],
@@ -297,11 +306,23 @@ with ((st.expander('Setup'))):
             'step_opt': 'step'
         }
     )
-    st.session_state['opt_parameters'] = parameters_edited
+    # save current dataframe state to the configuration
+    cfg.pse_parameters_edited_json = st.session_state.opt_parameters.reset_index().to_dict(orient="records")
 
     st.write("""
     ### Instrument Configurations
     """)
+    if  st.session_state['configuration_reloaded']:
+        for i in range(len(cfg.pse_config_list)):
+            if cfg.pse_configs_edited_json and i<len(cfg.pse_configs_edited_json):
+                saved_pars = cfg.pse_configs_edited_json[i]
+                # check if reloaded config data is non-empty and not a dict
+                if isinstance(saved_pars, list) and saved_pars and all(isinstance(row, dict) for row in saved_pars):
+                    st.session_state['df_opt_config'][i] = pandas.DataFrame(saved_pars)
+                    if "index" in st.session_state['df_opt_config'][i].columns:
+                        st.session_state['df_opt_config'][i].set_index("setting", inplace=True)
+            st.session_state['df_opt_config_key'][i] = uuid.uuid4()
+
     tablist = st.tabs(config_list_select)
     first_init_marker = False
     for i, config in enumerate(st.session_state['df_opt_config']):
@@ -336,6 +357,13 @@ with ((st.expander('Setup'))):
                 **common_keyword_args
             )
             adjust_consecutive_configurations()
+
+    # save various instrument configuration data frames to the app config
+    cfg.pse_configs_json = [df.reset_index().to_dict(orient="records") for df in st.session_state.df_opt_config]
+    cfg.pse_configs_edited_json = [df.reset_index().to_dict(orient="records") for df in
+                                   st.session_state.df_opt_config_edited]
+    cfg.pse_configs_original_json = [df.reset_index().to_dict(orient="records") for df in
+                                     st.session_state.df_opt_config_original]
 
     st.write("""
     ### Simulated Scattering Background
@@ -378,17 +406,6 @@ with ((st.expander('Setup'))):
         df_summary = summarize_optimization_parameter_settings()
         st.write(df_summary)
 
-
-datafile_names = api_sasview.extract_data_filenames_from_runfile(
-    runfile=Path(user_sans_model_dir) / str(cfg.pse_model_name))
-for file in datafile_names:
-    dfile = Path(user_sans_file_dir) / file
-    if not dfile.is_file():
-        infostr = 'Data file ' + file + ' not in user file folder. Please set up complete fit under Models and Fit'
-        st.info(infostr)
-        st.stop()
-
-
 # prepare fit directory
 # not needed, as app_functions.process_runfile() above is already doing this
 
@@ -403,8 +420,8 @@ col_opt_3.number_input('q_min [1/Å]', min_value=0.0001, max_value=0.8, value=cf
 cfg.pse_qmin = st.session_state.pse_qmin
 col_opt_4.number_input('q_max [1/Å]', min_value=0.0001, max_value=0.8, value=cfg.pse_qmax, key='pse_qmax')
 cfg.pse_qmax = st.session_state.pse_qmax
-col_opt_3.number_input('max time [s]   (0 = use configuration settings)', min_value=0., key='pse_tfix',
-                       value=cfg.pse_tfix, format='%f', step=1200.)
+col_opt_3.number_input('max time [s]   (0 = use configuration settings)', min_value=0, key='pse_tfix',
+                       value=cfg.pse_tfix, step=1200)
 cfg.pse_tfix = st.session_state.pse_tfix
 
 st.write("""
@@ -451,5 +468,5 @@ st.write("""
 """)
 run_control(configuration=configuration, kwargs=kwargs_entropy_gp)
 
-configuration.save_persistent_cfg(cfg)
+end_of_script_business()
 

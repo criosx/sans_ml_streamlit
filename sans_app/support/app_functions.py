@@ -15,7 +15,6 @@ from typing import Optional, Dict, Any
 
 from sans_app.support import configuration
 
-
 def process_runfile(model_name, model_dir, file_dir, fit_dir, force=True,
                     correct_data_paths=False):
     """
@@ -42,6 +41,7 @@ def process_runfile(model_name, model_dir, file_dir, fit_dir, force=True,
 
     file_dir = Path(file_dir).expanduser().resolve()
     model_dir = Path(model_dir).expanduser().resolve()
+    fit_dir = Path(fit_dir).expanduser().resolve()
     runfile = model_dir / model_name
     runfile_dest = fit_dir / model_name
 
@@ -71,7 +71,7 @@ def process_runfile(model_name, model_dir, file_dir, fit_dir, force=True,
     if not already_prepared:
         if not force:
             if fit_dir.is_dir() and any(fit_dir.iterdir()):
-                st.info("Optimization folder is not empty. Please archive and clear contents.")
+                st.warning("Optimization folder is not empty. Please archive and clear contents.")
                 st.stop()
 
         molstat.prepare_fit_directory(fitdir=str(fit_dir), runfile=str(runfile), datafile_names=datafile_paths)

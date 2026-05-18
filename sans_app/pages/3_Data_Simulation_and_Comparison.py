@@ -48,6 +48,8 @@ def column_simulate_data(column_number=None, col=None, model_list=None, config_l
     cns = str(cn)
     sans_graphs = []
 
+    temp_dir = Path(user_sans_temp_dir).expanduser().resolve()
+
     model_name = col.selectbox("Select model", model_list, key='comparison_model_selectbox' + cns)
     config_list = col.multiselect("Select configurations", config_list, key='comparison_config_selectbox' + cns)
     if config_list is not None:
@@ -101,7 +103,7 @@ def column_simulate_data(column_number=None, col=None, model_list=None, config_l
                 new_file_list.append('sim' + str(i) + '.dat')
                 # the same configuration per dataset
                 dataset_configurations.append(configurations)
-        api_sasview.write_data_filenames_to_runfile(runfile=model_name, filelist=new_file_list)
+        api_sasview.write_data_filenames_to_runfile(runfile=str(temp_dir / model_name), filelist=new_file_list)
         for filename in new_file_list:
             api_sasview.write_dummy_sans_file(filename)
 
