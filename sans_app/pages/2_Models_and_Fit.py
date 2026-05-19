@@ -55,9 +55,9 @@ def load_model(file):
         pass
 
 
-def save_sans_model(path, name):
-    with open(os.path.join(path, name), 'w') as f:
-        f.write(st.session_state['sans_model_text'])
+def save_sans_model(path, key):
+    with open(path, 'w') as f:
+        f.write(st.session_state[key])
 
 
 # --- GUI ----------------------
@@ -79,6 +79,7 @@ if uploaded_model is not None:
 model_name = col1_a.selectbox("Select from user directory", model_list, key='sans_model_selectbox')
 
 if model_name is None or model_name == '':
+    st.warning("No model selected.")
     st.stop()
 
 with open(os.path.join(user_sans_model_dir, model_name), "rb") as file:
@@ -98,8 +99,15 @@ st.write("""
 with open(model_path / model_name) as f:
     model_txt = f.readlines()
 with st.expander("Edit Model Script"):
-    txt = st.text_area('Model Script', "".join(model_txt), key=_generate_key(model_path / model_name), height=400,
-                       on_change=save_sans_model, args=[model_path, model_name], label_visibility='collapsed')
+    widget_key = _generate_key(model_path / model_name)
+    txt = st.text_area(
+        'Model Script', "".join(model_txt),
+        key= widget_key,
+        height=400,
+        on_change=save_sans_model,
+        args=[str(model_path / model_name), widget_key],
+        label_visibility='collapsed'
+    )
 
 col1_1, col1_2 = st.columns([1, 1])
 # create a fit object in the temp directory

@@ -275,7 +275,6 @@ with ((st.expander('Setup'))):
     df_pars['type'] = 'information'
     df_pars['step_opt'] = 0.1
 
-
     if  st.session_state['configuration_reloaded']:
         saved_pars = cfg.pse_parameters_edited_json
         # check if reloaded config is non-empty and contains row dictionaries
@@ -283,6 +282,7 @@ with ((st.expander('Setup'))):
             df_pars = pandas.DataFrame(saved_pars)
             if "index" in df_pars.columns:
                 df_pars.set_index("index", inplace=True)
+                df_pars.index.name = None
         st.session_state['pse_opt_pars_key'] = uuid.uuid4()
 
     st.session_state['opt_parameters'] = st.data_editor(
