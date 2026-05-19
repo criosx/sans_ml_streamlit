@@ -57,7 +57,7 @@ def process_runfile(model_name, model_dir, file_dir, fit_dir, force=True,
 
     already_prepared = False
     # check if model script has already been copied and is unchanged
-    if runfile_dest.is_file() and _file_hash(runfile) == _file_hash(runfile):
+    if runfile_dest.is_file() and _file_hash(runfile) == _file_hash(runfile_dest):
         # same for each data file
         for fname in datafile_names:
             if (file_dir / fname).is_file():

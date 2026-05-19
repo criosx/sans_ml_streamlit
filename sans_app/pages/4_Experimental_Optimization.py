@@ -447,7 +447,7 @@ kwargs_entropy_gp = {
     'mcmcsteps': cfg.pse_mcmcsteps,
     'deldir': True,
     'convergence': 2.0,
-    'fitter': 'MCMC',
+    'fitter': cfg.pse_fitter,
     'remove_fit_dir': True,
     'lm_iterations': 3,
     'mode': 'water',
