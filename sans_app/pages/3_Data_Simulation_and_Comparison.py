@@ -19,6 +19,8 @@ user_sans_fit_dir = str(st.session_state['user_sans_fit_dir'])
 user_sans_config_dir = str(st.session_state['user_sans_config_dir'])
 user_sans_temp_dir = str(st.session_state['user_sans_temp_dir'])
 
+cfg = st.session_state['cfg']
+
 # ------------ Functionality -----------
 def column_load_file(column_number=None, col=None, file_list=None):
     cn = column_number
@@ -121,6 +123,7 @@ def column_simulate_data(column_number=None, col=None, model_list=None, config_l
 
     return sans_graphs
 
+
 def create_non_default_configuration(default, modifier):
     modifier = modifier.strip()
     if modifier == '':
@@ -142,7 +145,6 @@ def create_non_default_configuration(default, modifier):
     return config_name
 
 
-@st.cache_data
 def load_config(file):
     try:
         with open(os.path.join(user_sans_config_dir, file.name), "wb") as f:
@@ -209,38 +211,47 @@ with st.expander('Edit'):
     uploaded_config = st.file_uploader("Upload", type=['json'])
     if uploaded_config is not None:
         load_config(uploaded_config)
-    col1_a, col1_b, = st.columns([1.2, 1])
-    config_name = col1_a.selectbox("Select configuration", config_list, key='sans_config_selectbox',
-                                   on_change=remove_key_exp_data_frame_edit)
 
+    col1_a, col1_b, = st.columns([1.2, 1])
+
+    if cfg.sim_config_name in config_list:
+        indx = config_list.index(cfg.sim_config_name)
+    else:
+        cfg.sim_config_name = None
+        indx = None
+    config_name = col1_a.selectbox("Select configuration", config_list, index=indx)
     if config_name is None:
         st.info('Please upload and/or select a configuration. You can also populate the configuration folder with '
                 'examples via the File System Tab.')
-        st.stop()
-
-    btn_remove = col1_a.button("Delete", on_click=remove_configuration, args=[config_name])
-    name_modifier = col1_b.text_input('Create or switch to copy with extension', '', key='sans_config_modifier')
-    with open(os.path.join(user_sans_config_dir, config_name), "rb") as file:
-        btn = col1_b.download_button(
-            label="Download",
-            data=file,
-            file_name=config_name,
-            mime='text/plain'
-        )
-
-    # This solution does not work, updates only every other time.
-    # df_config_edited = st.experimental_data_editor(df_config, use_container_width=True)
-    # Adapted this from: https://discuss.streamlit.io/t/experimental-data-editor/39707/2
-    # requires to remove key from session_state when changing config to edit
-
-    if 'exp_data_frame_config' not in st.session_state:
-        df_config = pandas.read_json(os.path.join(config_path, config_name), orient='record')
-        st.session_state.exp_data_frame_config = st.data_editor(df_config, width='stretch')
-        df_config_edited = st.session_state.exp_data_frame_config
     else:
-        df_config_edited = st.data_editor(st.session_state.exp_data_frame_config, width='stretch')
+        if config_name != cfg.sim_config_name:
+            cfg.sim_config_name = config_name
+            cfg.save()
+            remove_key_exp_data_frame_edit()
 
-    save_config(df_config_edited, config_name)
+        btn_remove = col1_a.button("Delete", on_click=remove_configuration, args=[config_name])
+        name_modifier = col1_b.text_input('Create or switch to copy with extension', '', key='sans_config_modifier')
+        with open(os.path.join(user_sans_config_dir, str(config_name)), "rb") as file:
+            btn = col1_b.download_button(
+                label="Download",
+                data=file,
+                file_name=config_name,
+                mime='text/plain'
+            )
+
+        # This solution does not work, updates only every other time.
+        # df_config_edited = st.experimental_data_editor(df_config, use_container_width=True)
+        # Adapted this from: https://discuss.streamlit.io/t/experimental-data-editor/39707/2
+        # requires to remove key from session_state when changing config to edit
+
+        if 'exp_data_frame_config' not in st.session_state:
+            df_config = pandas.read_json(os.path.join(config_path, str(config_name)), orient='record')
+            st.session_state.exp_data_frame_config = st.data_editor(df_config, width='stretch')
+            df_config_edited = st.session_state.exp_data_frame_config
+        else:
+            df_config_edited = st.data_editor(st.session_state.exp_data_frame_config, width='stretch')
+
+        save_config(df_config_edited, config_name)
 
 
 st.write("""
@@ -250,11 +261,11 @@ st.write("""
 col_data1, col_data2 = st.columns([1, 1])
 
 # ----------- data column 1 ----------
-choice1 = col_data1.radio("Source Data 1", ("Load File", "Simulate Data"), key='comparison_radio_1')
+col_data1.radio("Source Data 1", ("Load File", "Simulate Data"), key='sim_choice1')
 col_data1.divider()
 sans_graphs1 = sans_graphs2 = []
 
-if choice1 == 'Load File':
+if st.session_state.sim_choice1 == 'Load File':
     ds1, file_name1 = column_load_file(column_number=1, col=col_data1, file_list=file_list)
     if ds1 is not None:
         sans_graphs1 = [[ds1, file_name1]]
@@ -262,9 +273,9 @@ else:
     sans_graphs1 = column_simulate_data(column_number=1, col=col_data1, model_list=model_list, config_list=config_list)
 
 # ----------- data column 2 ----------
-choice2 = col_data2.radio("Source Data 2", ("Load File", "Simulate Data"), key='comparison_radio_2')
+col_data2.radio("Source Data 2", ("Load File", "Simulate Data"), key='sim_choice2')
 col_data2.divider()
-if choice2 == 'Load File':
+if st.session_state.sim_choice2 == 'Load File':
     ds2, file_name2 = column_load_file(column_number=2, col=col_data2, file_list=file_list)
     if ds2 is not None:
         sans_graphs2 = [[ds2, file_name2]]

@@ -28,6 +28,12 @@ class DataManagerConfig(PSEConfig):
         metadata={"config_groups": ["fit"]}
     )
 
+    # Simulation and Comparison configuration
+    sim_config_name: str = field(
+        default='',
+        metadata={"config_groups": ["sim"]}
+    )
+
     # Experimental Optimization configuration
     pse_model_name: str = field(
         default = '',
