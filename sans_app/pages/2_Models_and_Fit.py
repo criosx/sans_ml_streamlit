@@ -14,6 +14,8 @@ user_sans_file_dir = Path(st.session_state['user_sans_file_dir']).expanduser().r
 user_sans_fit_dir = Path(st.session_state['user_sans_fit_dir']).expanduser().resolve()
 user_sans_temp_dir = Path(st.session_state['user_sans_temp_dir']).expanduser().resolve()
 
+cfg = st.session_state['cfg']
+
 # ---- Functionality --------
 def _generate_key(path: Path) -> str:
     """
@@ -76,13 +78,23 @@ col1_a, col1_b = st.columns([1.5, 2])
 uploaded_model = col1_b.file_uploader("Upload / Download", type=['py'])
 if uploaded_model is not None:
     load_model(uploaded_model)
-model_name = col1_a.selectbox("Select from user directory", model_list, key='sans_model_selectbox')
 
-if model_name is None or model_name == '':
-    st.warning("No model selected.")
+if cfg.fit_model_name in model_list:
+     indx = model_list.index(cfg.fit_model_name)
+else:
+    cfg.fit_model_name = None
+    indx = None
+model_name = col1_a.selectbox("Select from user directory", model_list, index=indx)
+
+if model_name is None:
+    st.info("Please select a SANS model.")
     st.stop()
 
-with open(os.path.join(user_sans_model_dir, model_name), "rb") as file:
+if model_name != cfg.fit_model_name:
+    cfg.fit_model_name = model_name
+    cfg.save()
+
+with open(str(user_sans_model_dir / str(model_name)), "rb") as file:
     btn = col1_b.download_button(
         label="Download",
         data=file,
@@ -163,15 +175,17 @@ if uploaded_file is not None:
     app_functions.load_sans_files(uploaded_file, user_sans_file_dir)
 
 col1_3, col1_4 = st.columns([1, 1])
-burn = col1_3.number_input('burn', format='%i', step=50, min_value=50, value=100, key='burn')
-steps = col1_4.number_input('steps', format='%i', step=50, min_value=50, value=100, key='steps')
+col1_3.number_input('burn', format='%i', step=50, min_value=50, value=cfg.fit_mcmcburn, key='fit_burn')
+cfg.fit_mcmcburn = st.session_state.fit_burn
+col1_4.number_input('steps', format='%i', step=50, min_value=50, value=cfg.fit_mcmcsteps, key='fit_steps')
+cfg.fit_mcmcsteps = st.session_state.fit_steps
 
 if st.button('Run Fit'):
     if model_name is not None and uploaded_file is not None:
         datafile_names_uploaded = [file.name for file in uploaded_file]
         app_functions.run_fit(fitdir=str(user_sans_fit_dir), runfile=model_name, datafile_names=datafile_names,
                               datafile_names_uploaded=datafile_names_uploaded, file_dir=str(user_sans_file_dir),
-                              model_dir=str(user_sans_model_dir), burn=burn, steps=steps)
+                              model_dir=str(user_sans_model_dir), burn=cfg.fit_mcmcburn, steps=cfg.fit_mcmcsteps)
         # zip fit folder for download
         st.info('Zipping the fit ...')
         shutil.make_archive(os.path.join(user_sans_temp_dir, 'fit'), 'zip', user_sans_fit_dir)

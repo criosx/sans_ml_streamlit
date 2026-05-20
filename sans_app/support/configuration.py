@@ -14,7 +14,21 @@ class DataManagerConfig(PSEConfig):
     CONFIG_APP_AUTHOR: ClassVar[str] = "streamlit"
     CONFIG_FILENAME: ClassVar[str] = "config.json"
 
-    # pse setup
+    # Models and Fit configuration
+    fit_model_name: str = field(
+        default='',
+        metadata={"config_groups": ["fit"]}
+    )
+    fit_mcmcburn: int = field(
+        default=100,
+        metadata={"config_groups": ["fit"]}
+    )
+    fit_mcmcsteps: int = field(
+        default=100,
+        metadata={"config_groups": ["fit"]}
+    )
+
+    # Experimental Optimization configuration
     pse_model_name: str = field(
         default = '',
         metadata={"config_groups": ["pse"]}

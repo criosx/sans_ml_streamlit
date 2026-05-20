@@ -164,7 +164,6 @@ def remove_key_exp_data_frame_edit():
         del st.session_state.exp_data_frame_config
 
 
-@st.cache_data
 def save_config(df, fname):
     df.to_json(os.path.join(user_sans_config_dir, fname), orient='records')
 
