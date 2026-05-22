@@ -86,10 +86,10 @@ def summarize_optimization_parameter_settings():
             else:
                 parconfig = str(i)
             if row['optimize']:
-                lfit = ufit = '0'
-                lower_opt = str(row['lower_opt'])
-                upper_opt = str(row['upper_opt'])
-                step_opt = str(row['step_opt'])
+                lfit = ufit = 0.
+                lower_opt = row['lower_opt']
+                upper_opt = row['upper_opt']
+                step_opt = row['step_opt']
             else:
                 lfit = ufit = lower_opt = upper_opt = step_opt = None
 
@@ -194,7 +194,7 @@ st.write("""
 # Setup New Optimization
 """)
 
-with ((st.expander('Setup'))):
+with (((((st.expander('Setup')))))):
     st.write("""
     ## PSE Directory
     """)
@@ -404,6 +404,9 @@ with ((st.expander('Setup'))):
         ### Shorthand Summary
         """)
         df_summary = summarize_optimization_parameter_settings()
+        df_summary = df_summary.replace(
+            [float('inf'), float('-inf')], '').fillna('').astype(str).replace({'nan': '', 'None': ''}
+                                                                              )
         st.write(df_summary)
 
 # prepare fit directory

@@ -11,6 +11,7 @@ from scattertools.support import api_sasview
 import shutil
 import streamlit as st
 import subprocess
+import threading
 from typing import Optional, Dict, Any
 
 from sans_app.support import configuration
@@ -191,7 +192,7 @@ def run_fit(fitdir=None, runfile=None, datafile_names=None, datafile_names_uploa
         file.write('\n')
 
     # bumps uses multithreading, which collides with Streamlits requirement to register the thread context
-    subprocess.call(['python', 'run_fit.py'])
+    subprocess.run(['python', 'run_fit.py'])
 
     fitobj = molstat.CMolStat(
         fitsource="SASView",
